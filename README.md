@@ -19,7 +19,7 @@ Solución de inteligencia financiera autónoma desarrollada bajo el reto **Auton
 
 ## 📂 Estructura del Proyecto
 
-```text
+```
 ├── backend/
 │   ├── venv/                 # Entorno virtual de Python (ignorado por Git)
 │   ├── main.py               # Entrada de FastAPI, configuración CORS y rutas
@@ -36,17 +36,23 @@ Solución de inteligencia financiera autónoma desarrollada bajo el reto **Auton
 │   ├── vite.config.js        # Configuración de empaquetado de Vite
 │   └── .env                  # Variables de entorno públicas del frontend
 └── README.md                 # Documentación completa del proyecto
+```
 
-```text 
-Instalación Dependencias del Backend
+## Instalación Dependencias del Backend
+```
 cd backend
-
-# En macOS / Linux:
+```
+macOS / Linux:
+```
 ./setup.sh
-
-# En Windows:
+```
+Windows:
+```
 .\setup.bat
-
-Instalación del Front-End
-
+```
+## Instalación del Front-End
+- Es necesario tener instalado node.js para usar npm, si no lo tienes, instálalo. 
+```
+cd frontend
 npm run setup
+```
