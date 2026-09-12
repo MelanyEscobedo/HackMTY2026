@@ -37,6 +37,7 @@ Solución de inteligencia financiera autónoma desarrollada bajo el reto **Auton
 │   └── .env                  # Variables de entorno públicas del frontend
 └── README.md                 # Documentación completa del proyecto
 
+```text 
 Instalación Dependencias del Backend
 cd backend
 
