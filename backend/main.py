@@ -1,39 +1,45 @@
 """
 FastAPI backend for Capital You (Capital One Challenge -- HackMTY 2026).
 
-Powers:
-  1. The React frontend (frontend/) -- account data, fraud risk, spending
-     breakdown, leaks (recurring charges), card freeze.
-  2. An in-app chat + voice assistant (/chat/message, /chat/speak below --
-     assistant.py does the thinking via Google's Gemini API (free tier),
-     voice.py turns the reply into real audio via ElevenLabs). There's also
-     a standalone demo page for it at /chat, useful for testing without the
-     React app running.
-  3. Interactive docs at /docs for poking at it manually.
+This file merges two things built in parallel by the team:
 
-All of the above call the exact same compute_* functions defined below, so
-none of these interfaces can ever disagree with each other.
+  1. The fraud-detection + assistant side (Melany): Nessie account/purchase
+     data via nessie_client.py, a category-hopping fraud detection engine
+     (baseline.py), simulated card freeze (frozen_store.py), and an in-app
+     chat + voice assistant (/chat/message, /chat/speak -- assistant.py does
+     the thinking via Gemini tool-use, voice.py turns the reply into real
+     audio via ElevenLabs). There's also a standalone demo page for it at
+     GET /chat, useful for testing without the React app running.
+  2. A broader Nessie CRUD proxy + a simpler multi-turn chat endpoint
+     (Yuko): list/create/delete accounts, customers, deposits, withdrawals,
+     transfers, bills, plus POST /chat for freeform conversation via
+     gemini.py. Lives in nessie.py / gemini.py, separate modules from (1)
+     on purpose so neither side steps on the other's error types.
+
+All of (1)'s HTTP routes call the exact same compute_* functions defined
+below, so none of those interfaces can ever disagree with each other.
 
 Storage: for the hackathon, account/purchase data comes straight from
-Nessie (Capital One's sandbox API) on every request, and the "frozen card"
-state lives in a small local JSON file (frozen_store.py) since Nessie has
-no real freeze concept. No database wired up yet -- see the README for the
-Mongo plan if/when that's needed; this keeps things simple and working
-under time pressure.
+Nessie on every request, and the "frozen card" state lives in a small local
+JSON file (frozen_store.py) since Nessie has no real freeze concept. No
+database wired up yet -- see the README for the Mongo plan if/when that's
+needed; this keeps things simple and working under time pressure.
 
-CORS is wide open for hackathon convenience (matches what was already here)
--- tighten allow_origins before this goes anywhere real.
+CORS is wide open for hackathon convenience -- tighten allow_origins before
+this goes anywhere real.
 
 Run with:
     uvicorn main:app --reload
 """
 
 from collections import defaultdict
-from fastapi import FastAPI, HTTPException, Response
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import json
 import os
 
@@ -42,8 +48,10 @@ load_dotenv()
 from nessie_client import NessieClient, NessieError
 from baseline import build_baseline, score_window
 import frozen_store
+import nessie
+import gemini
 
-app = FastAPI(title="Capital You API")
+app = FastAPI(title="Capital You API", description="Proxy al Capital One Nessie API")
 
 # Habilitar CORS para que tu React en localhost:5173 pueda consumir esta API sin bloqueos
 app.add_middleware(
@@ -63,7 +71,11 @@ _merchant_category_cache: dict[str, str] = {}
 
 @app.get("/")
 def read_root():
-    return {"status": "ok", "message": "Backend FastAPI listo"}
+    return {
+        "status": "ok",
+        "message": "Backend FastAPI listo",
+        "nessie": bool(os.environ.get("NESSIE_API_KEY")),
+    }
 
 
 def get_merchant_category(merchant_id: str) -> str:
@@ -225,6 +237,12 @@ def demo_account():
 
 @app.get("/accounts/{account_id}/purchases")
 def account_purchases(account_id: str):
+    """Purchases for an account, each enriched with its merchant category --
+    used internally by /risk, /spending-breakdown and /leaks below, so this
+    stays the one canonical purchases route (the raw, non-enriched version
+    that used to live in nessie.py's proxy routes was dropped in the merge
+    to avoid two routes fighting over the same path -- everything this one
+    returns, that one also returned, plus the category)."""
     try:
         return purchases_with_category(account_id)
     except NessieError as e:
@@ -265,7 +283,7 @@ def freeze_account(account_id: str, frozen: bool = True):
     return {"account_id": account_id, "frozen": frozen}
 
 
-# ---- in-app chat + voice ----
+# ---- in-app chat + voice (tool-use assistant scoped to the demo account) ----
 
 class ChatMessageIn(BaseModel):
     message: str
@@ -301,6 +319,197 @@ def chat_speak(body: ChatSpeakIn):
     except voice.ElevenLabsError as e:
         raise HTTPException(status_code=502, detail=str(e))
     return Response(content=audio, media_type="audio/mpeg")
+
+
+# ------------------------------------------------------------------------
+# ---- Nessie CRUD proxy + freeform multi-turn chat (Yuko) ----
+#
+# Separate from everything above on purpose: nessie.py / gemini.py are their
+# own modules with their own NessieError/GeminiError classes, referenced
+# here as `nessie.NessieError` / `gemini.GeminiError` (fully qualified) so
+# they never get confused with nessie_client.py's NessieError used above.
+# ------------------------------------------------------------------------
+
+def _handle(func, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except nessie.NessieError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+class CustomerPayload(BaseModel):
+    first_name: str
+    last_name: str
+    address: dict
+
+
+class AccountPayload(BaseModel):
+    type: str  # "Checking" | "Savings" | "Credit Card"
+    nickname: str
+    rewards: int = Field(0, ge=0)
+    balance: int = Field(0, ge=0)
+
+
+class MoneyPayload(BaseModel):
+    medium: str = "balance"
+    transaction_date: str
+    status: str = "pending"
+    amount: int
+    description: str = ""
+
+
+class TransferPayload(MoneyPayload):
+    payee_id: str
+
+
+class BillPayload(BaseModel):
+    status: str
+    payee: str
+    nickname: str
+    creation_date: str
+    payment_date: str
+    recurring_date: int
+    payment_amount: int
+
+
+class ChatMessage(BaseModel):
+    role: str  # "user" | "model"
+    text: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+
+
+SYSTEM_PROMPT = (
+    "Eres 'Capital You', un asistente financiero ejecutivo de la demo de HackMTY "
+    "para Capital One. Responde de forma clara, concisa y profesional en el idioma "
+    "del usuario. Ayudas con temas de finanzas personales, cuentas, tarjetas y "
+    "ahorros usando datos de cuentas ficticias de Capital One."
+)
+
+
+# ------------------------- Lectura -------------------------
+
+@app.get("/accounts")
+def list_accounts():
+    return _handle(nessie.get_accounts)
+
+
+@app.get("/accounts/{account_id}")
+def account_detail(account_id: str):
+    return _handle(nessie.get_account, account_id)
+
+
+@app.get("/customers")
+def list_customers():
+    return _handle(nessie.get_customers)
+
+
+@app.get("/customers/{customer_id}")
+def customer_detail(customer_id: str):
+    return _handle(nessie.get_customer, customer_id)
+
+
+@app.get("/customers/{customer_id}/accounts")
+def customer_accounts(customer_id: str):
+    return _handle(nessie.get_customer_accounts, customer_id)
+
+
+@app.get("/accounts/{account_id}/transactions")
+def transactions(account_id: str, request: Request):
+    params = dict(request.query_params)
+    return _handle(nessie.get_transactions, account_id, **params)
+
+
+@app.get("/accounts/{account_id}/deposits")
+def deposits(account_id: str):
+    return _handle(nessie.get_deposits, account_id)
+
+
+@app.get("/accounts/{account_id}/withdrawals")
+def withdrawals(account_id: str):
+    return _handle(nessie.get_withdrawals, account_id)
+
+
+@app.get("/accounts/{account_id}/transfers")
+def transfers(account_id: str):
+    return _handle(nessie.get_transfers, account_id)
+
+
+@app.get("/accounts/{account_id}/bills")
+def bills(account_id: str):
+    return _handle(nessie.get_bills, account_id)
+
+
+# ------------------------- Escritura -------------------------
+
+@app.post("/customers")
+def create_customer(payload: CustomerPayload):
+    return _handle(nessie.create_customer, payload.model_dump())
+
+
+@app.post("/customers/{customer_id}/accounts")
+def create_account(customer_id: str, payload: AccountPayload):
+    return _handle(nessie.create_account, customer_id, payload.model_dump())
+
+
+@app.post("/accounts/{account_id}/deposits")
+def deposit(account_id: str, payload: MoneyPayload):
+    return _handle(nessie.deposit, account_id, payload.model_dump())
+
+
+@app.post("/accounts/{account_id}/withdrawals")
+def withdraw(account_id: str, payload: MoneyPayload):
+    return _handle(nessie.withdraw, account_id, payload.model_dump())
+
+
+@app.post("/accounts/{from_id}/transfers")
+def transfer(from_id: str, payload: TransferPayload):
+    return _handle(nessie.transfer, from_id, payload.model_dump())
+
+
+@app.post("/accounts/{account_id}/purchases")
+def purchase(account_id: str, payload: MoneyPayload):
+    """POST here creates a purchase (Nessie write) -- GET on this same path
+    above lists purchases (category-enriched); different HTTP methods on
+    the same path is fine, FastAPI routes them independently."""
+    return _handle(nessie.purchase, account_id, payload.model_dump())
+
+
+@app.post("/accounts/{account_id}/bills")
+def create_bill(account_id: str, payload: BillPayload):
+    return _handle(nessie.create_bill, account_id, payload.model_dump())
+
+
+@app.delete("/accounts/{account_id}")
+def remove_account(account_id: str):
+    return _handle(nessie.delete_account, account_id)
+
+
+@app.delete("/data")
+def reset_data():
+    return _handle(nessie.reset_data)
+
+
+# ------------------------- Chat (Gemini, freeform multi-turn) -------------------------
+
+@app.post("/chat")
+def chat(req: ChatRequest):
+    """Freeform multi-turn chat (no tools, the caller sends the whole
+    message history each time) -- separate from POST /chat/message above,
+    which is a single-turn call into a scoped tool-use assistant. Use this
+    one when you want a general conversational assistant from the React
+    app; use /chat/message when you want it to actually check balances,
+    freeze the card, etc. for the seeded demo account."""
+    try:
+        reply = gemini.chat(
+            [m.model_dump() for m in req.messages],
+            system=SYSTEM_PROMPT,
+        )
+    except gemini.GeminiError as e:
+        raise HTTPException(status_code=500, detail=e.detail)
+    return {"reply": reply}
 
 
 # ---- shared assistant brain + voice, imported down here on purpose: both
