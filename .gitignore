@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Env files with real secrets -- never commit these
+backend/.env
+frontend/.env
+
+# Local "database" files the backend writes at runtime
+backend/demo_account.json
+backend/frozen_accounts.json
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store

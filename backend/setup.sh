@@ -1,15 +1,9 @@
-#!/bin/bash
-echo "Configurando entorno virtual en Unix/macOS..."
-
-python3 -m venv venv || python -m venv venv
-
-if [ ! -d "venv" ]; then
-    echo "Error: No se pudo crear venv. Asegúrate de tener python3 y python3-venv instalados."
-    exit 1
-fi
-
-source venv/bin/activate
-pip install --upgrade pip
+#!/usr/bin/env bash
+# Instala las dependencias del backend. Uso: ./setup.sh (desde la carpeta backend/)
+set -e
 pip install -r requirements.txt
-
-echo "Entorno listo. Para activarlo usa: source venv/bin/activate"
+if [ ! -f .env ]; then
+  cp .env.example .env
+  echo "Se creó backend/.env a partir de .env.example -- edítalo con tus keys reales antes de correr la app."
+fi
+echo "Listo. Siguiente paso: python seed_data.py, luego uvicorn main:app --reload"

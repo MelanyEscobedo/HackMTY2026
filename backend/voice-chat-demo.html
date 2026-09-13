@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hopscotch &mdash; voice chat</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+  :root {
+    --page-plane: #eef1f7;
+    --ink-1: #141a26;
+    --ink-2: #4b5468;
+    --ink-muted: #7a8299;
+    --card: #ffffff;
+    --card-border: rgba(20,26,38,0.09);
+    --accent: #2a78d6;
+    --accent-ink: #ffffff;
+    --hairline: rgba(20,26,38,0.10);
+    --status-critical: #d03b3b;
+    --status-good: #0ca30c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--page-plane); color: var(--ink-1);
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; justify-content: center;
+    padding: clamp(16px, 4vw, 40px) 14px;
+  }
+  .app {
+    width: 100%; max-width: 460px;
+    background: var(--page-plane);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  h1 { font-family: "Fraunces", Georgia, serif; font-size: 20px; font-weight: 600; margin: 0; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 9px; }
+  .brand-mark {
+    width: 28px; height: 28px; border-radius: 8px; flex: none;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .conn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-muted); }
+  .conn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-muted); }
+  .conn.is-ok { color: var(--status-good); } .conn.is-ok .dot { background: var(--status-good); }
+  .conn.is-err { color: var(--status-critical); } .conn.is-err .dot { background: var(--status-critical); }
+
+  .thread {
+    background: var(--page-plane);
+    display: flex; flex-direction: column; gap: 10px;
+    min-height: 320px; max-height: 60vh; overflow-y: auto;
+    padding: 4px 2px;
+  }
+  .msg-row { display: flex; }
+  .msg-row.is-user { justify-content: flex-end; }
+  .bubble {
+    max-width: 82%; padding: 10px 13px; border-radius: 14px 14px 14px 4px;
+    font-size: 14px; line-height: 1.48;
+    background: var(--card); border: 1px solid var(--card-border); color: var(--ink-1);
+  }
+  .bubble.is-user { background: var(--accent); color: var(--accent-ink); border-color: transparent; border-radius: 14px 14px 4px 14px; }
+  .bubble.is-thinking { color: var(--ink-muted); font-style: italic; }
+  .bubble .speaking {
+    display: inline-flex; align-items: center; gap: 5px;
+    margin-top: 7px; font-size: 11px; font-weight: 700; color: var(--accent);
+  }
+  .bubble .speaking svg { width: 12px; height: 12px; }
+
+  .composer { display: flex; flex-direction: column; gap: 10px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    background: var(--card); border: 1px solid var(--card-border); border-radius: 999px;
+    padding: 8px 13px; min-height: 36px; cursor: pointer;
+    font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-1);
+  }
+  .chip:hover { filter: brightness(0.97); }
+  .chip:disabled { opacity: 0.5; cursor: default; }
+  .input-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card); border: 1px solid var(--card-border); border-radius: 14px;
+    padding: 6px 6px 6px 14px;
+  }
+  .input-row input {
+    flex: 1; min-width: 0; border: none; outline: none; background: transparent;
+    font: inherit; font-size: 14px; color: var(--ink-1);
+  }
+  .input-row input::placeholder { color: var(--ink-muted); }
+  .send-btn {
+    flex: none; width: 36px; height: 36px; border-radius: 10px;
+    background: var(--accent); color: #fff; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .send-btn:disabled { opacity: 0.5; cursor: default; }
+  .send-btn svg { width: 16px; height: 16px; }
+
+  .mic-btn {
+    flex: none; width: 36px; height: 36px; border-radius: 10px;
+    background: var(--page-plane); color: var(--ink-2); border: 1px solid var(--card-border);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .mic-btn:hover { filter: brightness(0.97); }
+  .mic-btn:disabled { opacity: 0.5; cursor: default; }
+  .mic-btn svg { width: 16px; height: 16px; }
+  .mic-btn.is-listening {
+    background: var(--status-critical); border-color: transparent; color: #fff;
+    animation: mic-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(208,59,59,0.35); }
+    50% { box-shadow: 0 0 0 7px rgba(208,59,59,0); }
+  }
+  .lang-toggle {
+    flex: none; min-width: 36px; height: 36px; border-radius: 10px; padding: 0 8px;
+    background: var(--page-plane); color: var(--ink-2); border: 1px solid var(--card-border);
+    cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .lang-toggle:hover { filter: brightness(0.97); }
+  .lang-toggle:disabled { opacity: 0.5; cursor: default; }
+  .mic-note { font-size: 11.5px; color: var(--ink-muted); }
+  .foot-note { font-size: 12px; color: var(--ink-muted); line-height: 1.5; margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 20V13M4 13L9 9M4 13L9 17M9 9V4M9 9L14 13M9 17V20M9 17L14 13M14 13V6M14 13L19 9M14 13L19 17M19 9V4M19 17V20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <h1>Hopscotch voice chat</h1>
+    </div>
+    <span class="conn" id="conn"><span class="dot"></span><span id="conn-text">Connecting&hellip;</span></span>
+  </div>
+
+  <div class="thread" id="thread"></div>
+
+  <div class="composer">
+    <div class="chip-row">
+      <button class="chip" type="button" data-cmd="Check my balance">Check balance</button>
+      <button class="chip" type="button" data-cmd="Any fraud alerts?">Fraud alert</button>
+      <button class="chip" type="button" data-cmd="Freeze my card">Freeze card</button>
+      <button class="chip" type="button" data-cmd="Spending summary">Spending summary</button>
+    </div>
+    <div class="input-row">
+      <button class="lang-toggle" id="lang-toggle" type="button" aria-label="Recognition language" hidden>ES</button>
+      <input id="input" type="text" placeholder="Message Hopscotch&hellip;" autocomplete="off">
+      <button class="mic-btn" id="mic-btn" type="button" aria-label="Speak" hidden>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button class="send-btn" id="send-btn" type="button" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 12h16M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <p class="mic-note" id="mic-note" hidden></p>
+  </div>
+
+  <p class="foot-note">
+    Real Gemini replies, spoken with real ElevenLabs audio &mdash; talks to the
+    backend running on your machine (<code>uvicorn main:app --reload</code>).
+    Needs <code>GOOGLE_API_KEY</code> and <code>ELEVENLABS_API_KEY</code> in
+    your <code>.env</code>. See README.md.
+  </p>
+</div>
+
+<audio id="player" hidden></audio>
+
+<script>
+(function () {
+  // Same-origin when this page is served BY the backend (see main.py's
+  // GET /chat route) -- falls back to the hardcoded local URL if you
+  // opened this file directly instead. Opening it directly still works
+  // fine, mic included (see setUpMic below); GET /chat is just simpler
+  // once you deploy, since then it's one origin, no API_BASE to update.
+  const API_BASE = location.protocol === "file:" ? "http://localhost:8000" : "";
+
+  const thread = document.getElementById("thread");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("send-btn");
+  const chips = document.querySelectorAll(".chip");
+  const micBtn = document.getElementById("mic-btn");
+  const langToggle = document.getElementById("lang-toggle");
+  const micNote = document.getElementById("mic-note");
+  const player = document.getElementById("player");
+  const connEl = document.getElementById("conn");
+  const connText = document.getElementById("conn-text");
+
+  function addBubble(text, from) {
+    const row = document.createElement("div");
+    row.className = "msg-row" + (from === "user" ? " is-user" : "");
+    const bubble = document.createElement("div");
+    bubble.className = "bubble" + (from === "assistant-thinking" ? " is-thinking" : "");
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    thread.appendChild(row);
+    thread.scrollTop = thread.scrollHeight;
+    return bubble;
+  }
+
+  function setBusy(busy) {
+    input.disabled = busy;
+    sendBtn.disabled = busy;
+    chips.forEach((c) => (c.disabled = busy));
+    if (micBtn) micBtn.disabled = busy;
+    if (langToggle) langToggle.disabled = busy;
+  }
+
+  function markSpeaking(bubble, isSpeaking) {
+    let tag = bubble.querySelector(".speaking");
+    if (isSpeaking) {
+      if (!tag) {
+        tag = document.createElement("div");
+        tag.className = "speaking";
+        tag.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none"><path d="M4 10v4M9 6v12M14 3v18M19 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Speaking…';
+        bubble.appendChild(tag);
+      }
+    } else if (tag) {
+      tag.remove();
+    }
+  }
+
+  async function speak(text, bubble) {
+    try {
+      markSpeaking(bubble, true);
+      const res = await fetch(API_BASE + "/chat/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error(`/chat/speak -> ${res.status}`);
+      const blob = await res.blob();
+      player.src = URL.createObjectURL(blob);
+      await player.play();
+    } catch (err) {
+      console.info("Hopscotch: voice playback skipped:", err.message);
+    } finally {
+      markSpeaking(bubble, false);
+    }
+  }
+  player.addEventListener("ended", () => URL.revokeObjectURL(player.src));
+
+  async function sendMessage(text) {
+    if (!text.trim()) return;
+    addBubble(text, "user");
+    setBusy(true);
+    const thinking = addBubble("Thinking…", "assistant-thinking");
+
+    try {
+      const res = await fetch(API_BASE + "/chat/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      if (!res.ok) throw new Error(`/chat/message -> ${res.status}`);
+      const data = await res.json();
+      thinking.remove();
+      thinking.parentElement.remove();
+      const bubble = addBubble(data.reply, "assistant");
+      speak(data.reply, bubble);
+    } catch (err) {
+      thinking.textContent =
+        "Couldn't reach the assistant. Is the backend running? (" + err.message + ")";
+      thinking.classList.remove("is-thinking");
+    } finally {
+      setBusy(false);
+      input.value = "";
+      input.focus();
+    }
+  }
+
+  sendBtn.addEventListener("click", () => sendMessage(input.value));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendMessage(input.value);
+  });
+  chips.forEach((chip) => {
+    chip.addEventListener("click", () => sendMessage(chip.dataset.cmd));
+  });
+
+  // ---- microphone (browser speech recognition -- free, no ElevenLabs
+  // call involved; ElevenLabs only speaks the assistant's replies, see
+  // speak() above). Two real requirements: (1) a "secure context" --
+  // https, localhost/127.0.0.1, or a file:// page all qualify; a plain
+  // http:// page on a real domain/IP does not -- and (2) browser support:
+  // Chrome and Edge implement SpeechRecognition, Safari and Firefox don't.
+  // ----
+  (function setUpMic() {
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const micUsable = window.isSecureContext && !!SpeechRecognitionCtor;
+
+    if (!micUsable) {
+      micNote.hidden = false;
+      micNote.textContent = window.isSecureContext
+        ? "Voice input isn't supported in this browser -- try Chrome or Edge."
+        : "Voice input needs https, or http://localhost specifically -- this page is neither right now.";
+      return;
+    }
+
+    micBtn.hidden = false;
+    langToggle.hidden = false;
+
+    let recogLang = (navigator.language || "en-US").toLowerCase().startsWith("es") ? "es-MX" : "en-US";
+    langToggle.textContent = recogLang.startsWith("es") ? "ES" : "EN";
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    let isListening = false;
+
+    recognition.addEventListener("result", (e) => {
+      let transcript = "";
+      for (let i = 0; i < e.results.length; i++) transcript += e.results[i][0].transcript;
+      input.value = transcript;
+    });
+    recognition.addEventListener("end", () => {
+      isListening = false;
+      micBtn.classList.remove("is-listening");
+      const text = input.value.trim();
+      if (text) sendMessage(text);
+    });
+    recognition.addEventListener("error", (e) => {
+      isListening = false;
+      micBtn.classList.remove("is-listening");
+      if (e.error !== "no-speech" && e.error !== "aborted") {
+        console.info("Hopscotch: mic error:", e.error);
+      }
+    });
+
+    micBtn.addEventListener("click", () => {
+      if (isListening) {
+        recognition.stop();
+        return;
+      }
+      if (!player.paused) player.pause();
+      input.value = "";
+      recognition.lang = recogLang;
+      isListening = true;
+      micBtn.classList.add("is-listening");
+      recognition.start();
+    });
+
+    langToggle.addEventListener("click", () => {
+      recogLang = recogLang.startsWith("es") ? "en-US" : "es-MX";
+      langToggle.textContent = recogLang.startsWith("es") ? "ES" : "EN";
+    });
+  })();
+
+  async function checkConnection() {
+    try {
+      const res = await fetch(API_BASE + "/health", { signal: AbortSignal.timeout(3000) });
+      if (!res.ok) throw new Error(String(res.status));
+      connEl.classList.add("is-ok");
+      connText.textContent = "Connected";
+      addBubble(
+        "Hi Maria — I'm the Hopscotch assistant. Ask me about your balance, a recent alert, or your spending, or freeze your card right here.",
+        "assistant"
+      );
+    } catch (err) {
+      connEl.classList.add("is-err");
+      connText.textContent = "Backend not reachable";
+      addBubble(
+        "I can't reach the Hopscotch backend right now. Run `uvicorn main:app --reload` on this machine, then reload this page.",
+        "assistant"
+      );
+    }
+  }
+
+  checkConnection();
+})();
+</script>
+
+</body>
+</html>

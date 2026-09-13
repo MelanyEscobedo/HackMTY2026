@@ -1,18 +1,8 @@
 @echo off
-echo Configurando entorno virtual en Windows...
-
-REM Intenta primero con 'py', si no con 'python'
-py -m venv venv 2>nul || python -m venv venv
-
-if not exist "venv\Scripts\activate.bat" (
-    echo Error: No se pudo crear la carpeta venv. Verifica la instalacion de Python.
-    exit /b 1
-)
-
-echo Activando venv e instalando dependencias...
-call venv\Scripts\activate.bat
-pip install --upgrade pip
+REM Instala las dependencias del backend. Uso: setup.bat (desde la carpeta backend\)
 pip install -r requirements.txt
-
-echo Entorno listo. Para activarlo usa: venv\Scripts\activate.bat
-pause
+if not exist .env (
+  copy .env.example .env
+  echo Se creo backend\.env a partir de .env.example -- editalo con tus keys reales antes de correr la app.
+)
+echo Listo. Siguiente paso: python seed_data.py, luego uvicorn main:app --reload

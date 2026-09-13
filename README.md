@@ -50,9 +50,60 @@ Windows:
 ```
 .\setup.bat
 ```
+
+Esto instala las dependencias de Python y crea `backend/.env` (copiado de
+`.env.example`) si todavía no existe. Ábrelo y pega tus keys reales:
+
+```
+NESSIE_API_KEY=...          # Nessie sandbox de Capital One
+GOOGLE_API_KEY=...          # gratis, sin tarjeta -- aistudio.google.com/apikey
+ELEVENLABS_API_KEY=...      # elevenlabs.io
+ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM   # opcional, ya trae un valor por default
+```
+
+`backend/.env` nunca se sube a GitHub (está en `.gitignore`) -- cada quien
+del equipo usa sus propias keys localmente.
+
 ## Instalación del Front-End
 - Es necesario tener instalado node.js para usar npm, si no lo tienes, instálalo. 
 ```
 cd frontend
 npm run setup
 ```
+
+## Correr el backend, paso a paso
+
+```
+cd backend
+python seed_data.py       # crea la clienta de prueba "Maria Hopper" + su historial (necesita NESSIE_API_KEY)
+uvicorn main:app --reload
+```
+
+Con eso corriendo en `http://localhost:8000`:
+
+- El frontend de React (`npm run dev` en `frontend/`, puerto 5173) ya puede
+  consumir la API -- CORS está abierto para eso.
+- `http://localhost:8000/chat` es una página de chat con voz standalone
+  (texto + micrófono + audio real de ElevenLabs), útil para probar el
+  asistente sin necesitar el frontend de React prendido.
+- `http://localhost:8000/docs` tiene documentación interactiva de todos los
+  endpoints.
+
+### Endpoints principales
+
+- `GET /demo-account` — cuenta, saldo y estado de congelado de la clienta demo.
+- `GET /accounts/{id}/purchases` — sus compras, con categoría de cada una.
+- `GET /accounts/{id}/risk` — puntaje de riesgo de fraude + explicación.
+- `GET /accounts/{id}/spending-breakdown` — gasto por categoría.
+- `GET /accounts/{id}/leaks` — cargos recurrentes (posibles suscripciones).
+- `POST /accounts/{id}/freeze` — congela/descongela la tarjeta (simulado).
+- `POST /chat/message` `{"message": "..."}` — un turno del asistente (Gemini).
+- `POST /chat/speak` `{"text": "..."}` — convierte texto a audio real (ElevenLabs).
+
+### Si `api.nessieisreal.com` no conecta
+
+Algunas redes (wifis de campus/eventos) bloquean el tráfico HTTP plano que
+usa Nessie. Si `python seed_data.py` o el backend fallan con
+`ConnectionError` / `connection refused` / `timed out`, no es un bug del
+código -- prueba con otra red, o revisa con los organizadores del hackathon
+si tienen una red recomendada para esto.
