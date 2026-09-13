@@ -9,7 +9,9 @@ This file merges two things built in parallel by the team:
      chat + voice assistant (/chat/message, /chat/speak -- assistant.py does
      the thinking via Gemini tool-use, voice.py turns the reply into real
      audio via ElevenLabs). There's also a standalone demo page for it at
-     GET /chat, useful for testing without the React app running.
+     GET /chat, and a bare-HTML dashboard (balance, fraud alerts, spending,
+     recurring charges) at GET /dashboard -- both useful for testing/demoing
+     without the React app running.
   2. A broader Nessie CRUD proxy + a simpler multi-turn chat endpoint
      (Yuko): list/create/delete accounts, customers, deposits, withdrawals,
      transfers, bills, plus POST /chat for freeform conversation via
@@ -66,7 +68,7 @@ client = NessieClient()
 
 DEMO_ACCOUNT_FILE = "demo_account.json"
 
-_merchant_category_cache: dict[str, str] = {}
+_merchant_cache: dict[str, dict] = {}
 
 
 @app.get("/")
@@ -78,23 +80,36 @@ def read_root():
     }
 
 
-def get_merchant_category(merchant_id: str) -> str:
-    if merchant_id not in _merchant_category_cache:
+def get_merchant_info(merchant_id: str) -> dict:
+    """Look up a merchant's name + category, cached so repeat purchases at
+    the same merchant only cost one Nessie call. Returns
+    {"name": ..., "category": ...}."""
+    if merchant_id not in _merchant_cache:
         merchant = client.get(f"/merchants/{merchant_id}")
         category = merchant.get("category")
         if isinstance(category, list):
             category = category[0] if category else "Unknown"
-        _merchant_category_cache[merchant_id] = category or "Unknown"
-    return _merchant_category_cache[merchant_id]
+        _merchant_cache[merchant_id] = {
+            "name": merchant.get("name") or "Unknown merchant",
+            "category": category or "Unknown",
+        }
+    return _merchant_cache[merchant_id]
+
+
+def get_merchant_category(merchant_id: str) -> str:
+    """Category-only lookup, kept around in case something only needs that."""
+    return get_merchant_info(merchant_id)["category"]
 
 
 def purchases_with_category(account_id: str) -> list[dict]:
-    """Pull purchases for an account and join in each one's merchant category."""
+    """Pull purchases for an account and join in each one's merchant name +
+    category -- used for the fraud/spending math below AND for the
+    dashboard's "Recent transactions" list, so both read from one place."""
     raw = client.get_account_purchases(account_id) or []
     enriched = []
     for p in raw:
-        category = get_merchant_category(p["merchant_id"])
-        enriched.append({**p, "category": category})
+        info = get_merchant_info(p["merchant_id"])
+        enriched.append({**p, "category": info["category"], "merchant_name": info["name"]})
     return enriched
 
 
@@ -225,6 +240,34 @@ def chat_page():
         return f.read()
 
 
+@app.get("/login", response_class=HTMLResponse)
+def login_page():
+    """
+    Cosmetic login screen -- Nessie has no concept of a logged-in user (no
+    usernames/passwords, just simulated banking data), so this doesn't check
+    credentials against anything real. Any input "works" and lands on
+    /dashboard. Good enough to make the demo feel like a real app's entry
+    point without pretending to have security it doesn't have.
+    """
+    with open("login.html", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard_page():
+    """
+    Visual dashboard: balance, fraud alerts (risk gauge + category-hop
+    trail), spending breakdown, recurring-charge ("leak") detection, plus
+    working "This was me" / "Freeze card" buttons wired to the same
+    /accounts/{id}/freeze endpoint the chat assistant uses. Pure HTML/CSS/JS,
+    no build step -- calls the same JSON routes below, so it can't drift
+    from what the React app (frontend/) shows once that's ready. Falls back
+    to static sample data on its own if this backend isn't running.
+    """
+    with open("dashboard.html", encoding="utf-8") as f:
+        return f.read()
+
+
 @app.get("/demo-account")
 def demo_account():
     try:
@@ -237,12 +280,13 @@ def demo_account():
 
 @app.get("/accounts/{account_id}/purchases")
 def account_purchases(account_id: str):
-    """Purchases for an account, each enriched with its merchant category --
-    used internally by /risk, /spending-breakdown and /leaks below, so this
-    stays the one canonical purchases route (the raw, non-enriched version
-    that used to live in nessie.py's proxy routes was dropped in the merge
-    to avoid two routes fighting over the same path -- everything this one
-    returns, that one also returned, plus the category)."""
+    """Purchases for an account, each enriched with its merchant name +
+    category -- used internally by /risk, /spending-breakdown and /leaks
+    below, AND by the dashboard's "Recent transactions" list, so this stays
+    the one canonical purchases route (the raw, non-enriched version that
+    used to live in nessie.py's proxy routes was dropped in the merge to
+    avoid two routes fighting over the same path -- everything this one
+    returns, that one also returned, plus the name and category)."""
     try:
         return purchases_with_category(account_id)
     except NessieError as e:

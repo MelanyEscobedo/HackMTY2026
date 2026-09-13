@@ -45,6 +45,9 @@
   .conn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-muted); }
   .conn.is-ok { color: var(--status-good); } .conn.is-ok .dot { background: var(--status-good); }
   .conn.is-err { color: var(--status-critical); } .conn.is-err .dot { background: var(--status-critical); }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .back-link { font-size: 12.5px; font-weight: 600; color: var(--accent); text-decoration: none; white-space: nowrap; }
+  .back-link:hover { text-decoration: underline; }
 
   .thread {
     background: var(--page-plane);
@@ -131,7 +134,10 @@
       </span>
       <h1>Hopscotch voice chat</h1>
     </div>
-    <span class="conn" id="conn"><span class="dot"></span><span id="conn-text">Connecting&hellip;</span></span>
+    <div class="topbar-right">
+      <a class="back-link" href="/dashboard" title="Volver al dashboard">&larr; Dashboard</a>
+      <span class="conn" id="conn"><span class="dot"></span><span id="conn-text">Connecting&hellip;</span></span>
+    </div>
   </div>
 
   <div class="thread" id="thread"></div>
