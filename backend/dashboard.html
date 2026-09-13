@@ -99,6 +99,8 @@
 
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   body {
     margin: 0;
     background: var(--page-plane);
@@ -112,7 +114,34 @@
   button, a.link { font-family: inherit; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .page { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  /* ---------- soft drifting brand-color blobs behind everything ---------- */
+  .bg-decor { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .bg-blob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.16; }
+  :root[data-theme="dark"] .bg-blob { opacity: 0.24; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .bg-blob { opacity: 0.24; }
+  }
+  .bg-blob.b1 { width: 440px; height: 440px; background: var(--accent); top: -140px; right: -110px; animation: drift1 24s ease-in-out infinite alternate; }
+  .bg-blob.b2 { width: 380px; height: 380px; background: var(--brand-red); bottom: -160px; left: -110px; animation: drift2 28s ease-in-out infinite alternate; }
+  @keyframes drift1 { from { transform: translate(0,0); } to { transform: translate(-36px, 44px); } }
+  @keyframes drift2 { from { transform: translate(0,0); } to { transform: translate(34px, -34px); } }
+  @media (prefers-reduced-motion: reduce) { .bg-blob { animation: none; } }
+
+  /* ---------- tab panels: one section visible at a time ---------- */
+  .tab-panel[hidden] { display: none !important; }
+  .tab-panel.tab-anim { animation: tabIn .28s ease; }
+  @keyframes tabIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .tab-panel.tab-anim { animation: none; } }
+
+  .is-pulsing { animation: pulseGlow 1.6s ease; }
+  @keyframes pulseGlow {
+    0% { box-shadow: 0 0 0 0 rgba(0,73,119,0.35); }
+    70% { box-shadow: 0 0 0 16px rgba(0,73,119,0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,73,119,0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .is-pulsing { animation: none; } }
+
+  .page { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
 
   /* ---------- navbar ---------- */
   .navbar {
@@ -133,8 +162,12 @@
     letter-spacing: 0.01em;
   }
   .navbar-links { display: flex; gap: 20px; margin-left: 4px; font-size: 13.5px; font-weight: 600; }
-  .navbar-links a { color: var(--ink-2); text-decoration: none; padding-bottom: 3px; border-bottom: 2px solid transparent; }
-  .navbar-links a.is-active { color: var(--accent); border-color: var(--accent); }
+  .navbar-links button {
+    font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink-2);
+    background: none; border: none; border-bottom: 2px solid transparent;
+    padding: 0 0 3px; cursor: pointer; transition: color .2s ease, border-color .2s ease;
+  }
+  .navbar-links button.is-active { color: var(--accent); border-color: var(--accent); }
   .navbar-persona { display: flex; align-items: center; gap: 10px; margin-left: auto; font-size: 13px; color: var(--ink-2); }
   .persona-avatar {
     width: 28px; height: 28px; border-radius: 50%; flex: none;
@@ -154,50 +187,89 @@
   .live-badge.is-live { color: var(--status-good); }
   .live-badge.is-live .dot { background: var(--status-good); }
 
-  /* ---------- hero: card + balance ---------- */
-  .hero { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: stretch; }
-  @media (max-width: 720px) { .hero { grid-template-columns: 1fr; } }
+  /* ---------- account stack: vertical Capital One-style account cards ---------- */
+  .account-stack { display: flex; flex-direction: column; gap: 14px; }
 
-  .card-visual {
+  .acct-card {
     position: relative; overflow: hidden;
-    border-radius: 18px; padding: 20px 22px; min-height: 168px;
+    border-radius: 20px; padding: 22px 24px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  .acct-card-primary {
     color: #fff;
-    background: linear-gradient(135deg, var(--accent) 0%, #01324f 55%, var(--brand-red) 145%);
-    display: flex; flex-direction: column; justify-content: space-between;
+    background: linear-gradient(135deg, var(--accent) 0%, #01324f 60%, var(--brand-red) 155%);
     box-shadow: 0 14px 34px -16px rgba(0,30,50,0.55);
   }
-  .card-visual::after {
+  .acct-card-primary::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: radial-gradient(140px 140px at 88% -12%, rgba(255,255,255,0.20), transparent 60%);
-  }
-  .card-top { display: flex; align-items: flex-start; justify-content: space-between; position: relative; z-index: 1; }
-  .card-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; opacity: 0.92; }
-  .card-chip { width: 34px; height: 24px; border-radius: 5px; background: linear-gradient(135deg,#f4d78c,#c9a24a); flex: none; }
-  .card-number { font-family: "Fraunces", serif; letter-spacing: 0.12em; font-size: 17px; margin: 20px 0 4px; position: relative; z-index: 1; }
-  .card-bottom { display: flex; align-items: flex-end; justify-content: space-between; font-size: 12px; position: relative; z-index: 1; gap: 8px; }
-  .card-name { font-weight: 600; letter-spacing: 0.02em; }
-  .card-type { opacity: 0.88; text-align: right; }
-  .card-frozen-ribbon {
-    position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center;
-    background: rgba(8,16,24,0.58); color: #fff; font-weight: 700; letter-spacing: 0.07em;
-    font-size: 12.5px; text-transform: uppercase; text-align: center; padding: 0 16px;
+    background: radial-gradient(180px 180px at 92% -14%, rgba(255,255,255,0.20), transparent 60%);
   }
 
-  .balance-panel {
-    background: var(--card); border: 1px solid var(--card-border); border-radius: 18px;
-    padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; justify-content: center;
+  .acct-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; position: relative; z-index: 1; }
+  .acct-card-id { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.92; }
+  .acct-card-sep { opacity: 0.6; }
+  .acct-card-mask { font-weight: 500; letter-spacing: 0.04em; }
+  .acct-card-badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.02em; padding: 4px 10px; border-radius: 999px;
+    background: rgba(255,255,255,0.18); color: #fff; flex: none;
   }
-  .balance-label { font-size: 13px; color: var(--ink-muted); }
-  .balance-amount { font-family: "Fraunces", serif; font-size: clamp(28px, 4vw, 36px); font-weight: 600; margin-top: 2px; }
-  .quick-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .acct-card-badge.is-frozen { background: rgba(208,59,59,0.85); }
+
+  .acct-card-balance { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 2px; }
+  .acct-card-balance-label { font-size: 12.5px; opacity: 0.85; }
+  .acct-card-balance-amount { font-family: "Fraunces", serif; font-size: clamp(28px, 4vw, 38px); font-weight: 600; }
+  .acct-card-name { font-size: 12px; opacity: 0.78; margin-top: 2px; }
+
+  .acct-card-actions { position: relative; z-index: 1; display: flex; gap: 10px; flex-wrap: wrap; }
+  .acct-chip {
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.4); border-radius: 999px; padding: 9px 16px;
+    background: rgba(255,255,255,0.12); color: #fff; transition: background .15s ease, transform .15s ease;
+  }
+  .acct-chip:hover { background: rgba(255,255,255,0.22); transform: translateY(-1px); }
+  @media (prefers-reduced-motion: reduce) { .acct-chip { transition: none; } .acct-chip:hover { transform: none; } }
+
+  .card-frozen-ribbon {
+    /* Status overlay only -- freezing the card shouldn't block the chat /
+       transactions actions that share this card, so it never eats clicks. */
+    position: absolute; inset: 0 0 auto 0; z-index: 2; display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+    background: rgba(8,16,24,0.72); color: #fff; font-weight: 700; letter-spacing: 0.07em;
+    font-size: 12px; text-transform: uppercase; text-align: center; padding: 8px 16px;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .acct-card-secondary {
+    border: none; text-align: left; cursor: pointer; font: inherit; width: 100%;
+    color: #fff;
+    background: linear-gradient(135deg, #7a1f1f 0%, #4a1414 100%);
+    box-shadow: 0 10px 26px -16px rgba(0,30,50,0.5);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .acct-card-secondary:hover, .acct-card-secondary:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 32px -16px rgba(0,30,50,0.6);
+  }
+  @media (prefers-reduced-motion: reduce) { .acct-card-secondary { transition: none; } .acct-card-secondary:hover { transform: none; } }
+  .acct-card-secondary.is-clear { background: linear-gradient(135deg, #0c4f2f 0%, #0a3322 100%); }
+  .acct-card-secondary .pill { background: rgba(255,255,255,0.18); color: #fff; }
+  .acct-card-note { margin: 0; font-size: 13px; line-height: 1.5; opacity: 0.92; position: relative; z-index: 1; }
+
+  .new-account-btn {
+    align-self: flex-start; font: inherit; font-size: 13.5px; font-weight: 600; cursor: not-allowed;
+    border: 1.5px dashed var(--card-border); border-radius: 999px; padding: 10px 18px;
+    background: transparent; color: var(--ink-muted);
+  }
   .btn {
-    border: 1px solid transparent; border-radius: 9px; padding: 10px 15px;
-    font-size: 13px; font-weight: 600; cursor: pointer; transition: filter .15s ease;
+    border: 1px solid transparent; border-radius: 999px; padding: 10px 17px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: filter .15s ease, transform .15s ease;
     text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
   }
-  .btn:hover { filter: brightness(0.94); }
-  .btn:disabled { cursor: default; opacity: 0.6; filter: none; }
-  @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+  .btn:hover { filter: brightness(0.94); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { cursor: default; opacity: 0.6; filter: none; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .btn { transition: none; } .btn:hover { transform: none; } }
   .btn-primary { background: var(--status-critical); color: #fff; }
   .btn-brand { background: var(--brand-red); color: var(--brand-red-ink); }
   .btn-outline { background: transparent; border-color: var(--accent); color: var(--accent); }
@@ -210,7 +282,13 @@
     border-radius: 20px;
     overflow: hidden;
     box-shadow: 0 1px 2px rgba(20,26,38,0.05), 0 10px 30px -18px rgba(20,26,38,0.35);
+    transition: transform .2s ease, box-shadow .2s ease;
   }
+  .card-section:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(20,26,38,0.06), 0 18px 42px -20px rgba(20,26,38,0.4);
+  }
+  @media (prefers-reduced-motion: reduce) { .card-section { transition: none; } .card-section:hover { transform: none; } }
   .card-section-head {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 16px 20px; border-bottom: 1px solid var(--hairline);
@@ -218,7 +296,7 @@
   .card-section-title { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 19px; }
   .card-section-body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 18px; }
 
-  .pill { font-size: 12px; font-weight: 600; letter-spacing: 0.01em; padding: 4px 10px; border-radius: 999px; }
+  .pill { font-size: 12px; font-weight: 600; letter-spacing: 0.01em; padding: 4px 10px; border-radius: 999px; white-space: nowrap; flex: none; }
   .pill-critical { background: rgba(208,59,59,0.13); color: var(--status-critical); }
   .pill-muted { background: rgba(122,130,153,0.14); color: var(--ink-muted); }
 
@@ -303,9 +381,86 @@
   .tx-empty { font-size: 13px; color: var(--ink-muted); padding: 6px 2px; }
 
   .foot-note { font-size: 12px; color: var(--ink-muted); text-align: center; max-width: 62ch; margin: 6px auto 0; line-height: 1.6; }
+
+  /* ---------- floating chat widget: sits above every section ---------- */
+  .chat-fab {
+    position: fixed; right: 20px; bottom: 20px; z-index: 40;
+    width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--brand-red), var(--accent));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 26px -8px rgba(0,0,0,0.45);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .chat-fab:hover { transform: scale(1.06); box-shadow: 0 14px 32px -8px rgba(0,0,0,0.5); }
+  .chat-fab svg { width: 24px; height: 24px; }
+  .chat-fab-dot {
+    position: absolute; top: 6px; right: 6px; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--status-good); border: 2px solid var(--card);
+  }
+  @media (prefers-reduced-motion: reduce) { .chat-fab { transition: none; } .chat-fab:hover { transform: none; } }
+
+  .chat-panel {
+    position: fixed; right: 20px; bottom: 88px; z-index: 40;
+    width: min(360px, calc(100vw - 32px)); max-height: min(560px, calc(100vh - 140px));
+    background: var(--card); border: 1px solid var(--card-border); border-radius: 18px;
+    box-shadow: 0 22px 54px -18px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .chat-panel.is-opening { animation: panelIn .18s ease; }
+  @keyframes panelIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .chat-panel.is-opening { animation: none; } }
+
+  .chat-panel-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--hairline); }
+  .chat-avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, var(--accent), var(--brand-red));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12.5px;
+  }
+  .chat-panel-title { display: flex; flex-direction: column; gap: 1px; }
+  .chat-panel-title strong { font-size: 13.5px; }
+  .chat-panel-status { font-size: 11px; color: var(--status-good); display: flex; align-items: center; gap: 5px; }
+  .chat-panel-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-good); }
+  .chat-close { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--ink-muted); font-size: 20px; line-height: 1; padding: 4px 6px; border-radius: 6px; }
+  .chat-close:hover { color: var(--ink-1); background: var(--page-plane); }
+
+  .chat-thread { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 140px; }
+  .chat-msg { display: flex; }
+  .chat-msg.is-user { justify-content: flex-end; }
+  .chat-bubble { max-width: 84%; padding: 9px 12px; border-radius: 13px 13px 13px 4px; font-size: 13.5px; line-height: 1.45; background: var(--page-plane); color: var(--ink-1); }
+  .chat-msg.is-user .chat-bubble { background: var(--accent); color: #fff; border-radius: 13px 13px 4px 13px; }
+  .chat-bubble.is-thinking { color: var(--ink-muted); font-style: italic; }
+
+  .chat-suggestions { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px; }
+  .chat-chip {
+    font: inherit; font-size: 12px; font-weight: 600; padding: 7px 12px; border-radius: 999px;
+    border: 1px solid var(--card-border); background: var(--page-plane); color: var(--ink-2);
+    cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .chat-chip:hover { background: var(--accent); color: #fff; border-color: transparent; }
+
+  .chat-input-row { display: flex; gap: 8px; padding: 10px 14px 12px; border-top: 1px solid var(--hairline); }
+  .chat-input-row input {
+    flex: 1; font: inherit; font-size: 13.5px; padding: 9px 13px; border-radius: 999px;
+    border: 1px solid var(--card-border); background: var(--page-plane); color: var(--ink-1);
+  }
+  .chat-input-row input:focus { border-color: var(--accent); }
+  .chat-send {
+    width: 36px; height: 36px; border-radius: 50%; border: none; flex: none;
+    background: var(--brand-red); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .chat-send:disabled { opacity: 0.5; cursor: default; }
+
+  .chat-foot { padding: 0 14px 14px; }
+  .chat-foot a { font-size: 11.5px; }
 </style>
 </head>
 <body>
+
+<div class="bg-decor" aria-hidden="true">
+  <div class="bg-blob b1"></div>
+  <div class="bg-blob b2"></div>
+</div>
 
 <div class="page">
 
@@ -315,10 +470,11 @@
       <span class="navbar-word">Capital You</span>
       <span class="navbar-tag">Capital One Challenge &middot; HackMTY 2026</span>
     </div>
-    <div class="navbar-links">
-      <a href="#overview" class="is-active">Resumen</a>
-      <a href="#transactions">Movimientos</a>
-      <a href="/chat">Asistente</a>
+    <div class="navbar-links" role="tablist">
+      <button type="button" class="is-active" data-tab="overview" role="tab" aria-selected="true">Resumen</button>
+      <button type="button" data-tab="alerts" role="tab" aria-selected="false">Alertas</button>
+      <button type="button" data-tab="spending" role="tab" aria-selected="false">Gastos</button>
+      <button type="button" data-tab="transactions" role="tab" aria-selected="false">Movimientos</button>
     </div>
     <div class="navbar-persona">
       <span class="persona-avatar" id="persona-avatar">MH</span>
@@ -328,34 +484,46 @@
     </div>
   </nav>
 
-  <section class="hero" id="overview">
-    <div class="card-visual" id="card-visual">
-      <div class="card-top">
-        <span class="card-brand">Capital One</span>
-        <span class="card-chip" aria-hidden="true"></span>
+  <div class="tab-panel" data-panel="overview">
+  <section class="account-stack" id="overview" aria-label="Tus cuentas">
+
+    <article class="acct-card acct-card-primary" id="card-visual">
+      <div class="acct-card-top">
+        <span class="acct-card-id">
+          <span id="card-type">Checking</span>
+          <span class="acct-card-sep">&middot;</span>
+          <span class="acct-card-mask num">&bull;&bull;&bull;&bull;<span id="card-mask">4471</span></span>
+        </span>
+        <span class="acct-card-badge" id="acct-badge">Activa</span>
       </div>
-      <div class="card-number num">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; <span id="card-mask">4471</span></div>
-      <div class="card-bottom">
-        <span class="card-name" id="card-name">MARIA HOPPER</span>
-        <span class="card-type" id="card-type">Checking</span>
+      <div class="acct-card-balance">
+        <span class="acct-card-balance-label">Saldo disponible</span>
+        <span class="acct-card-balance-amount num" id="balance-value">$1,428.53</span>
+        <span class="acct-card-name" id="card-name">Maria Hopper</span>
+      </div>
+      <div class="acct-card-actions">
+        <button class="acct-chip" type="button" id="hero-chat-btn">Hablar con el asistente</button>
+        <button class="acct-chip" type="button" data-tab="transactions">Ver movimientos</button>
       </div>
       <div class="card-frozen-ribbon" id="card-frozen-ribbon" hidden>Tarjeta congelada</div>
-    </div>
+    </article>
 
-    <div class="balance-panel">
-      <div>
-        <div class="balance-label">Saldo disponible</div>
-        <div class="balance-amount num" id="balance-value">$1,428.53</div>
+    <button type="button" class="acct-card acct-card-secondary" id="overview-alert-card" data-tab="alerts" aria-label="Ver alertas de fraude">
+      <div class="acct-card-top">
+        <span class="acct-card-id">Protección contra fraude</span>
+        <span class="pill pill-critical" id="overview-alert-pill">1 alerta</span>
       </div>
-      <div class="quick-actions">
-        <a class="btn btn-brand" href="/chat">Hablar con el asistente</a>
-        <a class="btn btn-outline" href="#transactions">Ver movimientos</a>
-      </div>
-    </div>
+      <p class="acct-card-note" id="overview-alert-note">4 categorías inusuales en 22 minutos &mdash; toca para revisarla.</p>
+    </button>
+
+    <button type="button" class="new-account-btn" disabled title="Próximamente en este prototipo">+ Abrir una nueva cuenta</button>
+
   </section>
+  </div>
 
   <!-- ALERTS -->
-  <section class="card-section" aria-label="Alertas de fraude">
+  <div class="tab-panel" data-panel="alerts" hidden>
+  <section class="card-section" id="alerts" aria-label="Alertas de fraude">
     <div class="card-section-head">
       <span class="card-section-title">Alertas</span>
       <span class="pill pill-critical" id="alert-pill">1 nueva</span>
@@ -424,10 +592,12 @@
       </div>
     </div>
   </section>
+  </div>
 
   <!-- SPENDING + LEAKS -->
+  <div class="tab-panel" data-panel="spending" hidden>
   <div class="screens">
-    <section class="card-section" aria-label="Gastos">
+    <section class="card-section" id="spending" aria-label="Gastos">
       <div class="card-section-head">
         <span class="card-section-title">Gastos</span>
         <span class="pill pill-muted">Este mes</span>
@@ -501,8 +671,10 @@
       </div>
     </section>
   </div>
+  </div>
 
   <!-- TRANSACTIONS -->
+  <div class="tab-panel" data-panel="transactions" hidden>
   <section class="card-section" id="transactions" aria-label="Movimientos recientes">
     <div class="card-section-head">
       <span class="card-section-title">Movimientos recientes</span>
@@ -545,6 +717,7 @@
       </div>
     </div>
   </section>
+  </div>
 
   <p class="foot-note" id="foot-note">
     Datos de ejemplo del motor de detección de Capital You &mdash; cifras ilustrativas para la persona
@@ -553,6 +726,32 @@
     &mdash; no es un producto oficial de Capital One.
   </p>
 
+</div>
+
+<!-- Floating assistant: sits above every section, not a separate page -->
+<button class="chat-fab" id="chat-fab" type="button" aria-label="Abrir el asistente">
+  <span class="chat-fab-dot" aria-hidden="true"></span>
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8A2.5 2.5 0 0 1 17.5 16H10l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5v-8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+</button>
+
+<div class="chat-panel" id="chat-panel" hidden>
+  <div class="chat-panel-head">
+    <span class="chat-avatar" aria-hidden="true">CY</span>
+    <span class="chat-panel-title">
+      <strong>Asistente Capital You</strong>
+      <span class="chat-panel-status"><span class="dot"></span>En línea</span>
+    </span>
+    <button class="chat-close" id="chat-close" type="button" aria-label="Cerrar">&times;</button>
+  </div>
+  <div class="chat-thread" id="chat-thread"></div>
+  <div class="chat-suggestions" id="chat-suggestions"></div>
+  <form class="chat-input-row" id="chat-form">
+    <input type="text" id="chat-input" placeholder="Pregúntame algo…" autocomplete="off">
+    <button class="chat-send" id="chat-send" type="submit" aria-label="Enviar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 12h16M14 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </form>
+  <div class="chat-foot"><a href="/chat">Abrir chat con voz completo &rarr;</a></div>
 </div>
 
 <script>
@@ -762,9 +961,36 @@
   function setFrozenUI(frozen) {
     const ribbon = document.getElementById("card-frozen-ribbon");
     const btn = document.getElementById("btn-freeze");
+    const badge = document.getElementById("acct-badge");
     ribbon.hidden = !frozen;
     btn.disabled = frozen;
     btn.textContent = frozen ? "Tarjeta congelada ✓" : "Congelar tarjeta";
+    if (badge) {
+      badge.textContent = frozen ? "Congelada" : "Activa";
+      badge.classList.toggle("is-frozen", frozen);
+    }
+  }
+
+  // Mini preview of the fraud alert, shown as a second "stacked" account
+  // card on the Resumen tab so the alert is visible before switching tabs.
+  function renderOverviewAlertPreview(risk) {
+    const card = document.getElementById("overview-alert-card");
+    const pill = document.getElementById("overview-alert-pill");
+    const note = document.getElementById("overview-alert-note");
+    if (!card || !pill || !note) return;
+    if (risk.flagged) {
+      card.classList.remove("is-clear");
+      pill.textContent = "1 alerta";
+      pill.classList.remove("pill-muted");
+      pill.classList.add("pill-critical");
+      note.textContent = (risk.explanation || "Detectamos actividad inusual en tu cuenta.") + " Toca para revisarla.";
+    } else {
+      card.classList.add("is-clear");
+      pill.textContent = "Todo en orden";
+      pill.classList.remove("pill-critical");
+      pill.classList.add("pill-muted");
+      note.textContent = "Sin actividad inusual por ahora — toca para ver el detalle.";
+    }
   }
 
   // "Fui yo" / "Congelar tarjeta" -- both call the real backend (simulated
@@ -799,6 +1025,207 @@
     }
   });
 
+  // ---------------------------------------------------------------------
+  // Tabs: one section visible at a time instead of one long scrolling
+  // page. Switching tabs also drives the floating chat's contextual
+  // suggestion chips -- same "what is the user looking at" signal, two uses.
+  // ---------------------------------------------------------------------
+  const TAB_IDS = ["overview", "alerts", "spending", "transactions"];
+
+  const SECTION_SUGGESTIONS = {
+    overview: [
+      { text: "¿Cómo va mi cuenta?" },
+      { text: "Congela mi tarjeta" },
+    ],
+    alerts: [
+      { text: "Explícame esta alerta", scrollTarget: "alerts" },
+      { text: "¿Debo preocuparme por esto?" },
+    ],
+    spending: [
+      { text: "Ayúdame a manejar mis gastos", scrollTarget: "spending" },
+      { text: "Muéstrame la gráfica de mis gastos", scrollTarget: "spend-bars" },
+    ],
+    transactions: [
+      { text: "¿Qué compré recientemente?", scrollTarget: "transactions" },
+      { text: "¿Algo aquí se ve inusual?" },
+    ],
+  };
+
+  let currentSection = "overview";
+
+  function renderSuggestions() {
+    const wrap = document.getElementById("chat-suggestions");
+    const items = SECTION_SUGGESTIONS[currentSection] || SECTION_SUGGESTIONS.overview;
+    wrap.innerHTML = "";
+    items.forEach(({ text, scrollTarget }) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chat-chip";
+      chip.textContent = text;
+      chip.addEventListener("click", () => sendChatMessage(text, { scrollTarget }));
+      wrap.appendChild(chip);
+    });
+  }
+
+  const tabButtons = Array.from(document.querySelectorAll(".navbar-links [data-tab]"));
+  const tabPanels = TAB_IDS.reduce((map, id) => {
+    map[id] = document.querySelector(`.tab-panel[data-panel="${id}"]`);
+    return map;
+  }, {});
+
+  function showTab(id) {
+    if (!TAB_IDS.includes(id)) return;
+    TAB_IDS.forEach((tid) => {
+      const panel = tabPanels[tid];
+      if (!panel) return;
+      if (tid === id) {
+        panel.hidden = false;
+        panel.classList.remove("tab-anim");
+        void panel.offsetWidth; // force reflow so the animation restarts every time
+        panel.classList.add("tab-anim");
+      } else {
+        panel.hidden = true;
+      }
+    });
+    tabButtons.forEach((btn) => {
+      const isActive = btn.dataset.tab === id;
+      btn.classList.toggle("is-active", isActive);
+      btn.setAttribute("aria-selected", String(isActive));
+    });
+    if (currentSection !== id) {
+      currentSection = id;
+      renderSuggestions();
+    }
+  }
+
+  // Any element marked data-tab (nav buttons, the "Ver movimientos"
+  // shortcut in the hero, and possibly more later) switches tabs the same
+  // way -- one delegated wiring instead of repeating the listener.
+  document.querySelectorAll("[data-tab]").forEach((el) => {
+    el.addEventListener("click", () => showTab(el.dataset.tab));
+  });
+
+  // scrollTarget -> which tab that element actually lives in, so a chat
+  // suggestion referencing e.g. "spend-bars" switches to the Gastos tab
+  // first (a hidden element can't be scrolled to or highlighted).
+  const SCROLL_TARGET_TAB = {
+    alerts: "alerts",
+    spending: "spending",
+    "spend-bars": "spending",
+    transactions: "transactions",
+  };
+
+  // ---------------------------------------------------------------------
+  // Floating chat widget -- talks to the SAME /chat/message endpoint the
+  // full /chat voice page uses (assistant.py's Gemini tool-use loop), just
+  // text-only and overlaid on top of the dashboard instead of a separate
+  // page. Each call is a single turn (the backend doesn't keep server-side
+  // history), so this only keeps the transcript for display, same as the
+  // full chat page does.
+  // ---------------------------------------------------------------------
+  let chatBusy = false;
+  let hasGreeted = false;
+
+  function addChatBubble(text, isUser, isThinking) {
+    const thread = document.getElementById("chat-thread");
+    const row = document.createElement("div");
+    row.className = "chat-msg" + (isUser ? " is-user" : "");
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble" + (isThinking ? " is-thinking" : "");
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    thread.appendChild(row);
+    thread.scrollTop = thread.scrollHeight;
+    return row;
+  }
+
+  function pulseHighlight(el) {
+    el.classList.add("is-pulsing");
+    setTimeout(() => el.classList.remove("is-pulsing"), 1600);
+  }
+
+  async function sendChatMessage(text, opts) {
+    opts = opts || {};
+    if (chatBusy || !text) return;
+    chatBusy = true;
+    document.getElementById("chat-send").disabled = true;
+
+    addChatBubble(text, true);
+    document.getElementById("chat-input").value = "";
+
+    if (opts.scrollTarget) {
+      const targetTab = SCROLL_TARGET_TAB[opts.scrollTarget];
+      if (targetTab) showTab(targetTab);
+      // Wait a tick: the panel just went from hidden to visible, and an
+      // element with no layout box yet can't be scrolled to or measured.
+      setTimeout(() => {
+        const target = document.getElementById(opts.scrollTarget);
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          pulseHighlight(target);
+        }
+      }, 60);
+    }
+
+    const thinking = addChatBubble("Pensando…", false, true);
+    try {
+      const res = await fetch(`${API_BASE}/chat/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!res.ok) throw new Error("status " + res.status);
+      const data = await res.json();
+      thinking.remove();
+      addChatBubble(data.reply, false);
+    } catch (err) {
+      thinking.remove();
+      addChatBubble(
+        "No pude conectar con el asistente. ¿Está corriendo el backend y tienes GOOGLE_API_KEY en tu .env?",
+        false
+      );
+    } finally {
+      chatBusy = false;
+      document.getElementById("chat-send").disabled = false;
+    }
+  }
+
+  function openChatPanel() {
+    const panel = document.getElementById("chat-panel");
+    if (!panel.hasAttribute("hidden")) return;
+    panel.removeAttribute("hidden");
+    panel.classList.add("is-opening");
+    setTimeout(() => panel.classList.remove("is-opening"), 220);
+    if (!hasGreeted) {
+      hasGreeted = true;
+      addChatBubble(
+        "Hola, soy tu asistente. Puedo revisar tu saldo, explicarte una alerta, congelar tu tarjeta o resumir tus gastos.",
+        false
+      );
+    }
+    renderSuggestions();
+    document.getElementById("chat-input").focus();
+  }
+
+  function closeChatPanel() {
+    document.getElementById("chat-panel").setAttribute("hidden", "");
+  }
+
+  document.getElementById("chat-fab").addEventListener("click", () => {
+    const panel = document.getElementById("chat-panel");
+    if (panel.hasAttribute("hidden")) openChatPanel();
+    else closeChatPanel();
+  });
+  document.getElementById("chat-close").addEventListener("click", closeChatPanel);
+  document.getElementById("hero-chat-btn").addEventListener("click", openChatPanel);
+  document.getElementById("chat-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = document.getElementById("chat-input");
+    const text = input.value.trim();
+    if (text) sendChatMessage(text);
+  });
+
   async function boot() {
     try {
       const account = await getJSON("/demo-account");
@@ -825,6 +1252,7 @@
       ]);
 
       renderAlert(risk);
+      renderOverviewAlertPreview(risk);
       renderSpending(spending);
       renderLeaks(leaks);
       renderTransactions(purchases, risk.sequence);
