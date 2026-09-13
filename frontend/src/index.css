@@ -1,7 +1,6 @@
 :root {
   color-scheme: light;
-  /* -- Capital One brand tokens: Regal Blue + Punch red, same values as
-     backend/dashboard.html so the two surfaces never drift apart -- */
+  /* -- Capital One brand tokens: Regal Blue + Punch red -- */
   --page-plane:      #eef1f5;
   --ink-1:           #101820;
   --ink-2:           #45505c;
@@ -63,7 +62,7 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark mode only ever applies via the Navbar's explicit toggle
+/* Dark mode only ever applies via the Sidebar's explicit toggle
    (data-theme="dark") -- no @media (prefers-color-scheme) auto-switch, so
    the app never surprise-renders dark just because the OS is in dark mode. */
 :root[data-theme='dark'] {
@@ -109,6 +108,9 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 .num { font-variant-numeric: tabular-nums; }
+
+/* Remove rounded corners across the whole app (square design). */
+* { border-radius: 0 !important; }
 
 #root {
   min-height: 100svh;

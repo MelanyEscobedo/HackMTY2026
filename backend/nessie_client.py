@@ -7,15 +7,14 @@ Nessie's docs are thin and every hackathon team hits this. When something
 fails, this prints the exact status code + response body from Nessie so you
 can see what it actually wanted.
 
-Base URL: http://api.nessieisreal.com  (plain HTTP -- if you get weird SSL
-errors, make sure you're not accidentally forcing https://)
+Base URL: https://api.nessieisreal.com  (HTTPS -- plain HTTP is refused)
 Auth: API key is passed as a query parameter (?key=...), not a header.
 """
 
 import os
 import requests
 
-BASE_URL = "http://api.nessieisreal.com"
+BASE_URL = os.getenv("NESSIE_BASE_URL", "https://api.nessieisreal.com")
 
 
 class NessieError(Exception):
@@ -99,7 +98,7 @@ class NessieClient:
     def create_merchant(self, name: str, category: str, lat: float = 0.0, lng: float = 0.0) -> dict:
         return self.post("/merchants", {
             "name": name,
-            "category": [category],
+            "category": category,
             "geocode": {"lat": lat, "lng": lng},
         })
 

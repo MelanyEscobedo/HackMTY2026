@@ -13,9 +13,8 @@ import {
   type SpendingBreakdown,
 } from './api'
 
-// Same static example numbers backend/dashboard.html shows when the
-// backend isn't reachable -- keeps the two surfaces looking the same in
-// "modo de ejemplo" instead of one going blank while the other has content.
+// Static example numbers used when the backend isn't reachable -- keeps the
+// app showing "modo de ejemplo" content instead of going blank.
 const FALLBACK_ACCOUNT: DemoAccount = {
   customer_id: 'demo',
   account_id: 'demo',
@@ -80,7 +79,7 @@ export interface AccountData {
   refetch: () => void
 }
 
-export function useAccountData(): AccountData {
+export function useAccountData(accountOverride: DemoAccount | null = null): AccountData {
   const [account, setAccount] = useState<DemoAccount>(FALLBACK_ACCOUNT)
   const [risk, setRisk] = useState<RiskResult>(FALLBACK_RISK)
   const [spending, setSpending] = useState<SpendingBreakdown>(FALLBACK_SPENDING)
@@ -100,24 +99,28 @@ export function useAccountData(): AccountData {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      setLoading(true)
       try {
-        const acc = await fetchDemoAccount()
+        const acc = accountOverride ?? (await fetchDemoAccount())
         if (cancelled) return
         setAccount(acc)
+        setLive(true)
+        setError(null)
 
-        const [r, s, l, p] = await Promise.all([
+        // Cada panel se actualiza por su cuenta: si un endpoint falla
+        // (p. ej. una cuenta sin historial), los demás siguen mostrando
+        // datos reales en lugar de romper toda la página.
+        const [r, s, l, p] = await Promise.allSettled([
           fetchRisk(acc.account_id),
           fetchSpendingBreakdown(acc.account_id),
           fetchLeaks(acc.account_id),
           fetchPurchases(acc.account_id),
         ])
         if (cancelled) return
-        setRisk(r)
-        setSpending(s)
-        setLeaks(l)
-        setPurchases(p)
-        setLive(true)
-        setError(null)
+        if (r.status === 'fulfilled') setRisk(r.value)
+        if (s.status === 'fulfilled') setSpending(s.value)
+        if (l.status === 'fulfilled') setLeaks(l.value)
+        if (p.status === 'fulfilled') setPurchases(p.value)
       } catch (err) {
         // No hay backend disponible (o /demo-account) -- nos quedamos con
         // el contenido de ejemplo. Estado esperado si aún no corriste
@@ -133,7 +136,7 @@ export function useAccountData(): AccountData {
     return () => {
       cancelled = true
     }
-  }, [tick])
+  }, [tick, accountOverride])
 
   const applyFrozen = useCallback(
     async (frozen: boolean) => {

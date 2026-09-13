@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { sendChatMessage } from '../api'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { sendChatMessage, speakChatText } from '../api'
 import type { Tab } from '../App'
 import './ChatWidget.css'
 
@@ -29,6 +29,7 @@ const SECTION_SUGGESTIONS: Record<Tab, Suggestion[]> = {
     { text: '¿Qué compré recientemente?', scrollTarget: 'transactions' },
     { text: '¿Algo aquí se ve inusual?' },
   ],
+  credit: [{ text: '¿Cuánto sería mi mensualidad?' }, { text: 'Ayúdame a elegir un enganche' }],
 }
 
 // scrollTarget id -> which tab that element actually lives in, so a
@@ -50,16 +51,111 @@ interface Message {
 
 let nextId = 1
 
+// Hardcoded reply for common credit questions -- avoids burning a Gemini
+// API call on a question we can answer ourselves. Matching is accent-
+// and case-insensitive on the normalized text.
+const normalizeText = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+
+const CANNED_REPLIES: { test: (t: string) => boolean; reply: string }[] = [
+  {
+    test: (t) => t.includes('mensualidad') && t.includes('cuanto'),
+    reply:
+      '¡Claro! Para estimar tu mensualidad necesito el monto, la tasa (APR) y el plazo. Como ejemplo: un crédito de $200,000 a 15% anual en 60 meses da una mensualidad aproximada de $4,282.19 (intereses totales de ~$76,931). Abre la sección Crédito para calcular tu caso exacto.',
+  },
+]
+
+function matchCanned(text: string): string | null {
+  const norm = normalizeText(text)
+  for (const entry of CANNED_REPLIES) {
+    if (entry.test(norm)) return entry.reply
+  }
+  return null
+}
+
 function ChatWidget({ open, onOpenChange, currentTab, onNavigate }: ChatWidgetProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [hasGreeted, setHasGreeted] = useState(false)
+  const [speakingId, setSpeakingId] = useState<number | null>(null)
+  const [speakError, setSpeakError] = useState<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const speakUrlRef = useRef<string | null>(null)
+
+  function stopSpeaking() {
+    const audio = audioRef.current
+    if (audio) {
+      audio.onended = null
+      audio.pause()
+      audio.removeAttribute('src')
+      audio.load()
+    }
+    if (speakUrlRef.current) {
+      URL.revokeObjectURL(speakUrlRef.current)
+      speakUrlRef.current = null
+    }
+    setSpeakingId(null)
+  }
+
+  async function toggleSpeak(id: number, text: string) {
+    if (speakingId === id) {
+      stopSpeaking()
+      return
+    }
+    stopSpeaking()
+    setSpeakingId(id)
+    setSpeakError(null)
+    try {
+      const blob = await speakChatText(text)
+      const url = URL.createObjectURL(blob)
+      speakUrlRef.current = url
+      const audio = audioRef.current
+      if (!audio) return
+      audio.src = url
+      audio.onended = () => {
+        if (speakUrlRef.current) {
+          URL.revokeObjectURL(speakUrlRef.current)
+          speakUrlRef.current = null
+        }
+        setSpeakingId(null)
+      }
+      await audio.play()
+    } catch (err) {
+      if (speakUrlRef.current) {
+        URL.revokeObjectURL(speakUrlRef.current)
+        speakUrlRef.current = null
+      }
+      setSpeakingId(null)
+      setSpeakError(err instanceof Error ? err.message : 'No se pudo reproducir el audio')
+    }
+  }
 
   useEffect(() => {
     if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight
   }, [messages])
+
+  // Auto-grow the input as the draft gets longer (and reset when it clears).
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [draft])
+
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      const text = draft.trim()
+      if (text) sendMessage(text)
+    }
+  }
 
   // "Adjust state when a prop changes" pattern (react.dev) instead of an
   // effect -- the panel can be opened either from the fab below or
@@ -99,6 +195,13 @@ function ChatWidget({ open, onOpenChange, currentTab, onNavigate }: ChatWidgetPr
       }, 80)
     }
 
+    const canned = matchCanned(text)
+    if (canned) {
+      setMessages((prev) => [...prev, { id: nextId++, text: canned, isUser: false }])
+      setBusy(false)
+      return
+    }
+
     const thinkingId = nextId++
     setMessages((prev) => [...prev, { id: thinkingId, text: 'Pensando…', isUser: false, isThinking: true }])
 
@@ -108,13 +211,14 @@ function ChatWidget({ open, onOpenChange, currentTab, onNavigate }: ChatWidgetPr
         ...prev.filter((m) => m.id !== thinkingId),
         { id: nextId++, text: res.reply, isUser: false },
       ])
-    } catch {
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'Error desconocido'
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== thinkingId),
         {
           id: nextId++,
           isUser: false,
-          text: 'No pude conectar con el asistente. ¿Está corriendo el backend y tienes GOOGLE_API_KEY en tu .env?',
+          text: `No pude conectar con el asistente (${detail}). ¿Está corriendo el backend? Asegúrate de tener GOOGLE_API_KEY o GEMINI_API_KEY en tu .env.`,
         },
       ])
     } finally {
@@ -139,7 +243,7 @@ function ChatWidget({ open, onOpenChange, currentTab, onNavigate }: ChatWidgetPr
       </button>
 
       {open && (
-        <div className="chat-panel is-opening">
+        <div className="chat-panel">
           <div className="chat-panel-head">
             <span className="chat-avatar" aria-hidden="true">CY</span>
             <span className="chat-panel-title">
@@ -155,6 +259,19 @@ function ChatWidget({ open, onOpenChange, currentTab, onNavigate }: ChatWidgetPr
             {messages.map((m) => (
               <div key={m.id} className={`chat-msg${m.isUser ? ' is-user' : ''}`}>
                 <div className={`chat-bubble${m.isThinking ? ' is-thinking' : ''}`}>{m.text}</div>
+                {!m.isUser && !m.isThinking && (
+                  <button
+                    type="button"
+                    className={`chat-speak${speakingId === m.id ? ' is-playing' : ''}`}
+                    onClick={() => toggleSpeak(m.id, m.text)}
+                    aria-label={speakingId === m.id ? 'Detener audio' : 'Leer mensaje'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M4 10v4h3l4 4V6l-4 4H4Z" fill="currentColor" />
+                      <path d="M15 8.5a4 4 0 0 1 0 7M17 6a7 7 0 0 1 0 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -172,6 +289,8 @@ function ChatWidget({ open, onOpenChange, currentTab, onNavigate }: ChatWidgetPr
             ))}
           </div>
 
+          {speakError && <p className="chat-speak-error">{speakError}</p>}
+
           <form
             className="chat-input-row"
             onSubmit={(e) => {
@@ -180,11 +299,15 @@ function ChatWidget({ open, onOpenChange, currentTab, onNavigate }: ChatWidgetPr
               if (text) sendMessage(text)
             }}
           >
-            <input
+            <textarea
+              ref={inputRef}
+              rows={1}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Pregúntame algo…"
               autoComplete="off"
+              aria-label="Mensaje"
             />
             <button className="chat-send" type="submit" aria-label="Enviar" disabled={!draft.trim() || busy}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -192,11 +315,7 @@ function ChatWidget({ open, onOpenChange, currentTab, onNavigate }: ChatWidgetPr
               </svg>
             </button>
           </form>
-          <div className="chat-foot">
-            <a href="http://localhost:8000/chat" target="_blank" rel="noreferrer">
-              Abrir chat con voz completo &rarr;
-            </a>
-          </div>
+          <audio ref={audioRef} hidden />
         </div>
       )}
     </>

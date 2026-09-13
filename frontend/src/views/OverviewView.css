@@ -35,9 +35,9 @@
 .acct-chip {
   font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
   border: 1px solid rgba(255,255,255,0.4); border-radius: 999px; padding: 9px 16px;
-  background: rgba(255,255,255,0.12); color: #fff; transition: background .15s ease, transform .15s ease;
+  background: rgba(255,255,255,0.12); color: #fff; transition: background .15s ease;
 }
-.acct-chip:hover { background: rgba(255,255,255,0.22); transform: translateY(-1px); }
+.acct-chip:hover { background: rgba(255,255,255,0.22); }
 
 .card-frozen-ribbon {
   position: absolute; inset: 0 0 auto 0; z-index: 2; display: flex; align-items: center; justify-content: center;
@@ -52,11 +52,6 @@
   color: #fff;
   background: linear-gradient(135deg, #7a1f1f 0%, #4a1414 100%);
   box-shadow: 0 10px 26px -16px rgba(0,30,50,0.5);
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.acct-card-secondary:hover, .acct-card-secondary:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 32px -16px rgba(0,30,50,0.6);
 }
 .acct-card-secondary.is-clear { background: linear-gradient(135deg, #0c4f2f 0%, #0a3322 100%); }
 .acct-card-primary .pill, .acct-card-secondary .pill, .acct-card-rewards .pill { background: rgba(255,255,255,0.18); color: #fff; }

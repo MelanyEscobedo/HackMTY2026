@@ -1,10 +1,8 @@
 // Talks to the real FastAPI backend (main.py) through Vite's /api proxy
 // (see vite.config.ts) -- ?key=... auth and the Nessie round trip all
-// happen server-side, this file just calls the JSON routes Melany's half
-// of main.py exposes: /demo-account, /accounts/{id}/risk|spending-
-// breakdown|leaks|purchases|freeze, and /chat/message. These are the same
-// routes backend/dashboard.html calls, so this app and that page can never
-// show different numbers.
+// happen server-side, this file just calls the JSON routes main.py exposes:
+// /demo-account, /accounts/{id}/risk|spending-breakdown|leaks|purchases|freeze,
+// and /chat/message.
 const BASE = '/api'
 
 export interface DemoAccount {
@@ -78,9 +76,26 @@ export interface ChatMessageResult {
   reply: string
 }
 
+export interface Customer {
+  _id: string
+  first_name: string
+  last_name: string
+  address?: Record<string, unknown>
+}
+
+export interface NessieAccount {
+  _id: string
+  type: string
+  nickname: string
+  rewards: number
+  balance: number
+  account_number?: string
+  customer_id?: string
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(60000),
     ...options,
     headers: { 'Content-Type': 'application/json', ...(options?.headers ?? {}) },
   })
@@ -127,3 +142,65 @@ export const sendChatMessage = (message: string) =>
     method: 'POST',
     body: JSON.stringify({ message }),
   })
+
+export const fetchCustomers = () => request<Customer[]>('/customers')
+
+export const fetchCustomerAccounts = (customerId: string) =>
+  request<NessieAccount[]>(`/customers/${customerId}/accounts`)
+
+export interface CreditEstimateOption {
+  downpayment_pct: number
+  downpayment: number
+  principal: number
+  monthly_payment: number
+  total_paid: number
+  total_interest: number
+}
+
+export interface CreditEstimate {
+  amount: number
+  downpayment: number
+  principal: number
+  apr: number
+  months: number
+  monthly_payment: number
+  total_paid: number
+  total_interest: number
+  downpayment_options: CreditEstimateOption[]
+}
+
+export interface CreditEstimateRequest {
+  amount: number
+  downpayment: number
+  apr: number
+  months: number
+}
+
+export const fetchCreditEstimate = (payload: CreditEstimateRequest) =>
+  request<CreditEstimate>('/credit/estimate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const speakChatText = async (text: string): Promise<Blob> => {
+  const res = await fetch(`${BASE}/chat/speak`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+    signal: AbortSignal.timeout(60000),
+  })
+  if (!res.ok) {
+    let detail = res.statusText
+    try {
+      const body = await res.json()
+      detail =
+        typeof body.detail === 'string'
+          ? body.detail
+          : JSON.stringify(body.detail ?? body)
+    } catch {
+      // keep statusText fallback
+    }
+    throw new Error(detail)
+  }
+  return res.blob()
+}

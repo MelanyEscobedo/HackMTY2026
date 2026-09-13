@@ -1,5 +1,4 @@
-// Shared formatting + category-color helpers, ported from dashboard.html so
-// the two surfaces render identical numbers. Nessie balances/amounts are
+// Shared formatting + category-color helpers. Nessie balances/amounts are
 // plain dollar floats (e.g. 1428.53) -- NOT cents, so callers must not
 // divide by 100.
 export const money = (n: number) =>

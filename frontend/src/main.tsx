@@ -4,9 +4,8 @@ import './index.css'
 import App from './App.tsx'
 
 // Always starts light regardless of the OS theme -- only the in-app toggle
-// (Navbar's sun/moon button) switches to dark, same fix applied to
-// dashboard.html so the app doesn't surprise-render dark just because the
-// system is in dark mode.
+// (Sidebar's sun/moon button) switches to dark, so the app doesn't surprise-
+// render dark just because the system is in dark mode.
 const stored = localStorage.getItem('theme')
 const initial = stored === 'dark' ? 'dark' : 'light'
 document.documentElement.dataset.theme = initial

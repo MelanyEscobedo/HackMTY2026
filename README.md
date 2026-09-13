@@ -81,18 +81,8 @@ uvicorn main:app --reload
 
 Con eso corriendo en `http://localhost:8000`:
 
-- El frontend de React (`npm run dev` en `frontend/`, puerto 5173) ya puede
-  consumir la API -- CORS está abierto para eso.
-- `http://localhost:8000/dashboard` es el **dashboard visual completo**
-  (saldo, alerta de fraude con gauge de riesgo, gasto por categoria, cargos
-  recurrentes, botones reales de "This was me" / "Freeze card") -- HTML/CSS/JS
-  puro, sin npm ni build, listo para usarse o mostrar en la demo aunque el
-  frontend de React todavia no este terminado. Si el backend no esta
-  corriendo, la pagina lo detecta sola y muestra datos de ejemplo en vez de
-  romperse.
-- `http://localhost:8000/chat` es una página de chat con voz standalone
-  (texto + micrófono + audio real de ElevenLabs), útil para probar el
-  asistente sin necesitar el frontend de React prendido.
+- El frontend de React (`npm run dev` en `frontend/`, puerto 5173) es la
+  interfaz principal -- CORS está abierto para que consuma la API.
 - `http://localhost:8000/docs` tiene documentación interactiva de todos los
   endpoints.
 
@@ -106,7 +96,6 @@ Con eso corriendo en `http://localhost:8000`:
 - `POST /accounts/{id}/freeze` — congela/descongela la tarjeta (simulado).
 - `POST /chat/message` `{"message": "..."}` — un turno del asistente (Gemini).
 - `POST /chat/speak` `{"text": "..."}` — convierte texto a audio real (ElevenLabs).
-- `GET /dashboard` — la pagina del dashboard visual descrita arriba.
 
 ### Si `api.nessieisreal.com` no conecta
 

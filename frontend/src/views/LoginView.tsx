@@ -8,7 +8,7 @@ interface LoginViewProps {
 // Cosmetic only -- there's nothing to validate against. Nessie has no
 // concept of a logged-in user (no usernames/passwords, just simulated
 // banking data), so this just gives the demo a normal "login" beat before
-// landing on the real, live dashboard. Same behavior as backend/login.html.
+// landing on the real, live dashboard.
 function LoginView({ onLogin }: LoginViewProps) {
   const [submitting, setSubmitting] = useState(false)
 

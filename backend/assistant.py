@@ -20,6 +20,7 @@ Required env var (add to .env):
 import os
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 import main as backend  # reuse compute_risk / compute_spending / etc. directly
@@ -50,8 +51,8 @@ def get_client() -> genai.Client:
 SYSTEM_PROMPT = """\
 You are Hopscotch, an in-app banking assistant. You help one customer, \
 Maria Hopper, check her balance, review a possible fraud alert, freeze her \
-card, and see a spending summary -- using the tools provided. Only use the \
-tools; never invent numbers yourself.
+card, see a spending summary, and estimate loans/credit payments -- using \
+the tools provided. Only use the tools; never invent numbers yourself.
 
 Reply in the same language the customer writes in (Spanish or English). \
 Keep replies short -- 2-4 sentences, meant to be read on a phone screen AND \
@@ -104,6 +105,23 @@ TOOL_SPECS = [
                         "charges that look like subscriptions.",
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "get_credit_estimate",
+        "description": "Estimate a loan's monthly payment, total interest, "
+                        "and downpayment scenarios. Use whenever the customer "
+                        "asks about a loan, credit, financing, monthly "
+                        "payment, or downpayment (enganche).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "amount": {"type": "number", "description": "Loan amount in dollars."},
+                "downpayment": {"type": "number", "description": "Downpayment in dollars (optional, default 0)."},
+                "apr": {"type": "number", "description": "Annual interest rate in percent, e.g. 15."},
+                "months": {"type": "integer", "description": "Loan term in months."},
+            },
+            "required": ["amount", "apr", "months"],
+        },
+    },
 ]
 
 GEMINI_TOOL = types.Tool(function_declarations=[
@@ -144,6 +162,22 @@ def execute_tool(name: str, tool_input: dict) -> dict:
         leaks = backend.compute_leaks(account_id)
         return {**spending, "leaks": leaks["leaks"]}
 
+    if name == "get_credit_estimate":
+        amount = tool_input.get("amount")
+        apr = tool_input.get("apr")
+        months = tool_input.get("months")
+        if amount is None or apr is None or months is None:
+            return {"error": "Faltan datos: necesito amount (monto), apr (tasa %) y months (plazo)."}
+        try:
+            return backend.compute_credit_estimate(
+                amount=float(amount),
+                downpayment=float(tool_input.get("downpayment") or 0),
+                apr=float(apr),
+                months=int(months),
+            )
+        except ValueError as e:
+            return {"error": str(e)}
+
     return {"error": f"Unknown tool: {name}"}
 
 
@@ -163,9 +197,22 @@ def run_agent_turn(user_message: str) -> str:
     contents = [user_message]  # the SDK accepts a plain string as a turn
 
     for _ in range(5):  # hard cap so a confused loop can't run forever
-        response = client.models.generate_content(
-            model=MODEL, contents=contents, config=config
-        )
+        try:
+            response = client.models.generate_content(
+                model=MODEL, contents=contents, config=config
+            )
+        except genai_errors.APIError as e:
+            # Most common on the free tier: quota exhausted (429) or the
+            # model overloaded (503). Both are transient -- tell the user to
+            # wait instead of leaking a raw exception as a bare 500.
+            code = getattr(e, "code", None)
+            if code in (429, 503):
+                raise RuntimeError(
+                    "El asistente está temporalmente saturado: la API de "
+                    "Gemini está al límite o con mucha demanda. Espera unos "
+                    "segundos e inténtalo de nuevo."
+                ) from e
+            raise RuntimeError(f"El asistente no respondió correctamente: {e}") from e
 
         calls = response.function_calls
         if not calls:

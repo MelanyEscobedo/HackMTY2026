@@ -39,11 +39,11 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 import json
 import os
+import unicodedata
 
 load_dotenv()
 
@@ -148,16 +148,34 @@ def compute_risk(account_id: str, window_size: int = 4) -> dict:
     purchases as the baseline history, and score that final window. Matches
     seed_data.py, which appends exactly a 4-purchase fraud burst at the end
     -- keep window_size=4 unless you change the burst length there too.
+
+    Accounts with no history (or no baseline to compare against) return a
+    neutral, non-flagged result instead of erroring, so the dashboard can
+    switch between customers with different amounts of data.
     """
     purchases = purchases_with_category(account_id)
 
-    if len(purchases) <= window_size:
-        raise ValueError(
-            f"Need more than {window_size} purchases to separate "
-            f"baseline history from a recent window."
-        )
+    if not purchases:
+        return {
+            "account_id": account_id,
+            "score": 0.0,
+            "flagged": False,
+            "unusual_categories": [],
+            "explanation": "Sin historial de compras para esta cuenta todavía.",
+            "sequence": [],
+        }
 
     history, recent = purchases[:-window_size], purchases[-window_size:]
+    if not history:
+        return {
+            "account_id": account_id,
+            "score": 0.0,
+            "flagged": False,
+            "unusual_categories": [],
+            "explanation": "Historial insuficiente para evaluar riesgo en esta cuenta.",
+            "sequence": [],
+        }
+
     baseline = build_baseline(history)
     result = score_window(recent, baseline)
 
@@ -226,48 +244,6 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/chat", response_class=HTMLResponse)
-def chat_page():
-    """
-    Standalone chat+voice demo page, served from this same backend/origin.
-    Handy for testing the assistant without the React app running. You can
-    also just open voice-chat-demo.html directly (double-click it) -- mic
-    included, that still works too (file:// pages count as a browser
-    "secure context"). This route just makes deployment/testing simpler:
-    one origin, no CORS to think about, no API base URL to configure.
-    """
-    with open("voice-chat-demo.html", encoding="utf-8") as f:
-        return f.read()
-
-
-@app.get("/login", response_class=HTMLResponse)
-def login_page():
-    """
-    Cosmetic login screen -- Nessie has no concept of a logged-in user (no
-    usernames/passwords, just simulated banking data), so this doesn't check
-    credentials against anything real. Any input "works" and lands on
-    /dashboard. Good enough to make the demo feel like a real app's entry
-    point without pretending to have security it doesn't have.
-    """
-    with open("login.html", encoding="utf-8") as f:
-        return f.read()
-
-
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard_page():
-    """
-    Visual dashboard: balance, fraud alerts (risk gauge + category-hop
-    trail), spending breakdown, recurring-charge ("leak") detection, plus
-    working "This was me" / "Freeze card" buttons wired to the same
-    /accounts/{id}/freeze endpoint the chat assistant uses. Pure HTML/CSS/JS,
-    no build step -- calls the same JSON routes below, so it can't drift
-    from what the React app (frontend/) shows once that's ready. Falls back
-    to static sample data on its own if this backend isn't running.
-    """
-    with open("dashboard.html", encoding="utf-8") as f:
-        return f.read()
-
-
 @app.get("/demo-account")
 def demo_account():
     try:
@@ -333,6 +309,21 @@ class ChatMessageIn(BaseModel):
     message: str
 
 
+CREDIT_CANNED_REPLY = (
+    "¡Claro! Para estimar tu mensualidad necesito el monto, la tasa (APR) y el plazo. "
+    "Como ejemplo: un crédito de $200,000 a 15% anual en 60 meses da una mensualidad "
+    "aproximada de $4,282.19 (intereses totales de ~$76,931). Abre la sección Crédito "
+    "para calcular tu caso exacto."
+)
+
+
+def _normalize_for_match(text: str) -> str:
+    """Lowercase + strip accents so '¿Cuánto será...' matches 'cuanto sera...'."""
+    return "".join(
+        ch for ch in unicodedata.normalize("NFD", text).lower() if unicodedata.category(ch) != "Mn"
+    )
+
+
 class ChatSpeakIn(BaseModel):
     text: str
 
@@ -342,7 +333,14 @@ def chat_message(body: ChatMessageIn):
     """One turn of the assistant: runs assistant.py's Gemini tool-use loop
     and returns plain text. The frontend calls /chat/speak separately with
     that text to get real audio -- kept as two calls so the text bubble can
-    appear immediately while the audio finishes a moment later."""
+    appear immediately while the audio finishes a moment later.
+
+    Credit monthly-payment questions are answered with a hardcoded reply to
+    avoid burning a Gemini API call on a prompt we can answer ourselves.
+    """
+    norm = _normalize_for_match(body.message)
+    if "mensualidad" in norm and "cuanto" in norm:
+        return {"reply": CREDIT_CANNED_REPLY}
     try:
         reply = assistant.run_agent_turn(body.message)
     except FileNotFoundError as e:
@@ -534,6 +532,62 @@ def remove_account(account_id: str):
 @app.delete("/data")
 def reset_data():
     return _handle(nessie.reset_data)
+
+
+# ------------------------- Credit analysis (estimator) -------------------------
+
+class CreditEstimateRequest(BaseModel):
+    amount: float = Field(..., gt=0, description="Monto del préstamo")
+    downpayment: float = Field(0, ge=0, description="Enganche inicial")
+    apr: float = Field(..., ge=0, description="Tasa de interés anual (%)")
+    months: int = Field(..., ge=1, description="Plazo en meses")
+
+
+def amortize(principal: float, apr: float, months: int) -> dict:
+    """Amortización estándar: pago mensual fijo + totales."""
+    r = apr / 100 / 12
+    if r == 0:
+        monthly = principal / months
+    else:
+        monthly = principal * r * (1 + r) ** months / ((1 + r) ** months - 1)
+    total_paid = monthly * months
+    return {
+        "monthly_payment": round(monthly, 2),
+        "total_paid": round(total_paid, 2),
+        "total_interest": round(total_paid - principal, 2),
+    }
+
+
+def compute_credit_estimate(amount: float, downpayment: float, apr: float, months: int) -> dict:
+    """Shared estimator used by both the HTTP route and the chat assistant."""
+    if downpayment >= amount:
+        raise ValueError("El enganche debe ser menor que el monto del préstamo.")
+    principal = amount - downpayment
+    base = amortize(principal, apr, months)
+
+    options = []
+    for pct in (0, 10, 20, 30):
+        dp = round(amount * pct / 100, 2)
+        p = amount - dp
+        options.append({"downpayment_pct": pct, "downpayment": dp, "principal": round(p, 2), **amortize(p, apr, months)})
+
+    return {
+        "amount": amount,
+        "downpayment": downpayment,
+        "principal": round(principal, 2),
+        "apr": apr,
+        "months": months,
+        **base,
+        "downpayment_options": options,
+    }
+
+
+@app.post("/credit/estimate")
+def credit_estimate(req: CreditEstimateRequest):
+    try:
+        return compute_credit_estimate(req.amount, req.downpayment, req.apr, req.months)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ------------------------- Chat (Gemini, freeform multi-turn) -------------------------

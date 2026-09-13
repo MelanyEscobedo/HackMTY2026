@@ -13,7 +13,7 @@ function TransactionsView({ purchases, risk }: TransactionsViewProps) {
   // risk.sequence lines up with the LAST risk.sequence.length purchases, in
   // the same order (baseline.py's score_window scores purchases[-window:])
   // -- use it to flag the exact rows the fraud engine currently thinks are
-  // unusual. Same alignment logic as dashboard.html's renderTransactions.
+  // unusual.
   const total = purchases.length
   const windowLen = risk.sequence.length
   const unusualByIndex = new Array(total).fill(false)

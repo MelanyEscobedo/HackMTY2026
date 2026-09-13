@@ -1,0 +1,104 @@
+.credit-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.credit-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.credit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.credit-form input {
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--page-plane);
+  color: var(--ink-1);
+  box-sizing: border-box;
+}
+.credit-form input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.credit-form .btn {
+  grid-column: 1 / -1;
+  justify-content: center;
+}
+
+.credit-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.credit-stat {
+  background: var(--page-plane);
+  border: 1px solid var(--card-border);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.credit-stat.main {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+.credit-stat-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+.credit-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.credit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.credit-table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+.credit-table td {
+  padding: 10px;
+  color: var(--ink-1);
+  border-bottom: 1px solid var(--hairline);
+}
+.credit-table tr:last-child td {
+  border-bottom: none;
+}
+.credit-table tr.is-current td {
+  background: var(--accent-bg);
+  font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .credit-form {
+    grid-template-columns: 1fr;
+  }
+  .credit-form .btn {
+    grid-column: 1;
+  }
+}
