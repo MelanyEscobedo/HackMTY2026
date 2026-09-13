@@ -1,0 +1,21 @@
+.screens { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 720px) { .screens { grid-template-columns: 1fr; } }
+
+.spend-total { display: flex; align-items: baseline; justify-content: space-between; }
+.spend-label { font-size: 13px; color: var(--ink-muted); }
+.spend-amount { font-size: 22px; font-weight: 600; font-family: var(--heading); }
+
+.bars { background: var(--chart-surface); color: var(--chart-ink); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 14px 6px; display: flex; flex-direction: column; gap: 12px; }
+.bar-row { display: flex; flex-direction: column; gap: 5px; }
+.bar-row:last-child { padding-bottom: 8px; }
+.bar-row-top { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; }
+.bar-row-top .cat { display: flex; align-items: center; gap: 7px; color: var(--chart-ink); font-weight: 500; }
+.swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.bar-row-top .amt { color: var(--chart-ink-2); }
+.bar-track { height: 8px; border-radius: 5px; background: var(--chart-grid); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 5px; }
+
+.leak-card { border: 1px solid rgba(154,107,0,0.30); background: rgba(250,178,25,0.10); border-radius: 12px; padding: 13px 14px; display: flex; flex-direction: column; gap: 8px; }
+.leak-card p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-1); }
+.link { font-size: 13px; font-weight: 600; text-decoration: none; color: var(--accent); }
+.link:hover { text-decoration: underline; }

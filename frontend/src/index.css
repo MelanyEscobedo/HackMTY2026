@@ -1,69 +1,114 @@
 :root {
-  --text: #5b6470;
-  --text-h: #16233a;
-  --bg: #ffffff;
-  --border: #d9dee4;
-  --code-bg: #f3f5f7;
-  --accent: #d50029;
-  --accent-bg: rgba(213, 0, 41, 0.08);
-  --accent-border: rgba(213, 0, 41, 0.4);
-  --blue: #004977;
-  --blue-bg: rgba(0, 73, 119, 0.08);
-  --social-bg: rgba(243, 245, 247, 0.6);
+  color-scheme: light;
+  /* -- Capital One brand tokens: Regal Blue + Punch red, same values as
+     backend/dashboard.html so the two surfaces never drift apart -- */
+  --page-plane:      #eef1f5;
+  --ink-1:           #101820;
+  --ink-2:           #45505c;
+  --ink-muted:       #78838f;
+  --card:            #ffffff;
+  --card-border:     rgba(16,24,32,0.09);
+  --accent:          #004977; /* Capital One "Regal Blue" */
+  --accent-ink:      #ffffff;
+  --brand-red:       #d03027; /* Capital One "Punch" */
+  --brand-red-ink:   #ffffff;
+  --hairline:        rgba(16,24,32,0.10);
+
+  /* validated chart surface + categorical ramp */
+  --chart-surface:   #fcfcfb;
+  --chart-ink:       #0b0b0b;
+  --chart-ink-2:     #52514e;
+  --chart-muted:     #898781;
+  --chart-grid:      #e1e0d9;
+  --series-groceries:#2a78d6;
+  --series-gas:      #eb6834;
+  --series-coffee:   #1baf7a;
+  --series-stream:   #eda100;
+  --series-extra1:   #e87ba4;
+  --series-extra2:   #4a3aa7;
+
+  /* status (fixed, never themed) */
+  --status-good:     #0ca30c;
+  --status-warning:  #fab219;
+  --status-critical: #d03b3b;
+  --status-critical-soft: #e79a94;
+
+  /* legacy aliases kept so components that still use the old names
+     (--text, --bg, --border, --accent-bg...) keep working while everything
+     migrates to the tokens above */
+  --text: var(--ink-2);
+  --text-h: var(--ink-1);
+  --bg: var(--page-plane);
+  --border: var(--hairline);
+  --code-bg: var(--card);
+  --accent-bg: rgba(0,73,119,0.08);
+  --accent-border: rgba(0,73,119,0.4);
+  --blue: var(--accent);
+  --blue-bg: rgba(0,73,119,0.08);
+  --social-bg: rgba(16,24,32,0.05);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --heading: 'Fraunces', Georgia, 'Times New Roman', serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light;
-  color: var(--text);
-  background: var(--bg);
+  font: 16px/145% var(--sans);
+  letter-spacing: 0.01em;
+  color: var(--ink-1);
+  background: var(--page-plane);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
+/* Dark mode only ever applies via the Navbar's explicit toggle
+   (data-theme="dark") -- no @media (prefers-color-scheme) auto-switch, so
+   the app never surprise-renders dark just because the OS is in dark mode. */
 :root[data-theme='dark'] {
-  --text: #9aa5b1;
-  --text-h: #f2f4f7;
-  --bg: #14171d;
-  --border: #2a3039;
-  --code-bg: #1c212b;
-  --accent: #ff4d6a;
-  --accent-bg: rgba(255, 77, 106, 0.16);
-  --accent-border: rgba(255, 77, 106, 0.5);
-  --blue: #59a5d8;
-  --blue-bg: rgba(89, 165, 216, 0.12);
-  --social-bg: rgba(40, 46, 58, 0.5);
+  color-scheme: dark;
+  --page-plane:      #0b1016;
+  --ink-1:           #f4f5f8;
+  --ink-2:           #c3c8d6;
+  --ink-muted:       #8890a4;
+  --card:            #171e2a;
+  --card-border:     rgba(255,255,255,0.09);
+  --accent:          #5aa6dd;
+  --accent-ink:      #08101f;
+  --brand-red:       #e2564b;
+  --brand-red-ink:   #1a0806;
+  --hairline:        rgba(255,255,255,0.10);
+
+  --chart-surface:   #1a1a19;
+  --chart-ink:       #ffffff;
+  --chart-ink-2:     #c3c2b7;
+  --chart-muted:     #898781;
+  --chart-grid:      #2c2c2a;
+  --series-groceries:#3987e5;
+  --series-gas:      #d95926;
+  --series-coffee:   #199e70;
+  --series-stream:   #c98500;
+  --series-extra1:   #d55181;
+  --series-extra2:   #9085e9;
+
+  --text: var(--ink-2);
+  --text-h: var(--ink-1);
+  --bg: var(--page-plane);
+  --border: var(--hairline);
+  --code-bg: var(--card);
+  --accent-bg: rgba(90,166,221,0.14);
+  --accent-border: rgba(90,166,221,0.45);
+  --blue: var(--accent);
+  --blue-bg: rgba(90,166,221,0.14);
+  --social-bg: rgba(255,255,255,0.06);
   --shadow:
     rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --text: #9aa5b1;
-    --text-h: #f2f4f7;
-    --bg: #14171d;
-    --border: #2a3039;
-    --code-bg: #1c212b;
-    --accent: #ff4d6a;
-    --accent-bg: rgba(255, 77, 106, 0.16);
-    --accent-border: rgba(255, 77, 106, 0.5);
-    --blue: #59a5d8;
-    --blue-bg: rgba(89, 165, 216, 0.12);
-    --social-bg: rgba(40, 46, 58, 0.5);
-  }
-}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.num { font-variant-numeric: tabular-nums; }
 
 #root {
   min-height: 100svh;
